@@ -9,7 +9,7 @@ func TestHandleDatagram(t *testing.T) {
 	d := Datagram{chanID: 1, msgs: []Msg{msg}}
 	err := handleDatagram(d)
 	if err == nil {
-		t.Errorf("HANDSHAKES must use channel ID 0")
+		t.Errorf("HANDSHAKE must use channel ID 0")
 	}
 }
 
