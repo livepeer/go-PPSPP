@@ -2,14 +2,46 @@ package core
 
 import "testing"
 
-//  TestHandleDatagram tests the handleDatagram function
-func TestHandleDatagram(t *testing.T) {
-	// try a datagram on channel 1 with a HANDSHAKE
-	msg := Msg{op: HANDSHAKE}
-	d := Datagram{chanID: 1, msgs: []Msg{msg}}
-	err := handleDatagram(d)
+func TestGoodHandshake(t *testing.T) {
+	p := NewPeer()
+
+	// start the handshake and check that the peer's channel moves to WAIT_HANDSHAKE
+	ours := p.startHandshake()
+	c := p.chans[ours]
+	if c.state != WAIT_HANDSHAKE {
+		t.Errorf("bad state %v", c.state)
+	}
+
+	// inject a handshake reply and check that the peer's channel moves to READY
+	h := Handshake{14}
+	m := Msg{op: HANDSHAKE, data: h}
+	d := Datagram{chanID: ours, msgs: []Msg{m}}
+	err := p.HandleDatagram(d)
+	if err != nil {
+		t.Errorf("HandleDatagram error: %v", err)
+	}
+	if c.state != READY {
+		t.Errorf("peer not ready after HANDSHAKE reply, state=%v", c.state)
+	}
+}
+
+func TestBadHandshake(t *testing.T) {
+	p := NewPeer()
+
+	// start the handshake and check that the peer's channel moves to WAIT_HANDSHAKE
+	ours := p.startHandshake()
+	c := p.chans[ours]
+	if c.state != WAIT_HANDSHAKE {
+		t.Errorf("bad state %v", c.state)
+	}
+
+	// inject a bad handshake reply and check that we notice it
+	h := Handshake{0}
+	m := Msg{op: HANDSHAKE, data: h}
+	d := Datagram{chanID: ours, msgs: []Msg{m}}
+	err := p.HandleDatagram(d)
 	if err == nil {
-		t.Errorf("HANDSHAKE must use channel ID 0")
+		t.Errorf("HandleDatagram did not catch bad handshake reply")
 	}
 }
 
