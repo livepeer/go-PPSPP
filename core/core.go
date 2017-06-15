@@ -6,7 +6,11 @@ import (
 	"errors"
 	"fmt"
 
-	"strconv"
+	json0 "encoding/json"
+
+	"encoding/gob"
+
+	"bytes"
 
 	"github.com/golang/glog"
 	crypto "github.com/libp2p/go-libp2p-crypto"
@@ -36,18 +40,67 @@ type ChanID uint
 type Opcode uint8
 
 const (
-	handshake Opcode = 1
+	handshake Opcode = 13 // weird number so it's easier to notice in debug info
 )
 
-type Msg struct {
-	Op   Opcode
-	Data interface{}
-}
+type MsgData interface{}
 
 type Handshake struct {
 	C ChanID
 	// TODO: swarm SwarmMetadata
 	// TODO: peer capabilities
+}
+
+type Msg struct {
+	Op   Opcode
+	Data MsgData
+}
+
+func (m *Msg) UnmarshalJSON(b []byte) error {
+	aux := &struct {
+		Op   Opcode
+		Data []byte
+	}{}
+
+	json0.Unmarshal(b, &aux)
+
+	m.Op = aux.Op
+
+	dec := gob.NewDecoder(bytes.NewBuffer(aux.Data))
+
+	switch aux.Op {
+	case handshake:
+		var h Handshake
+		err := dec.Decode(&h)
+		if err != nil {
+			return errors.New("failed to decode handshake")
+		}
+		m.Data = h
+	default:
+		return errors.New("failed to decode message data")
+	}
+
+	return nil
+}
+
+func (m Msg) MarshalJSON() ([]byte, error) {
+	var b bytes.Buffer
+	enc := gob.NewEncoder(&b)
+	switch m.Data.(type) {
+	case Handshake:
+		gob.Register(Handshake{})
+		err := enc.Encode(m.Data.(Handshake))
+		if err != nil {
+			return nil, errors.New("Failed to marshal Handshake")
+		}
+	default:
+		return nil, errors.New("failed to marshal message data")
+	}
+
+	j := make(map[string]interface{})
+	j["Op"] = m.Op
+	j["Data"] = b.Bytes()
+	return json0.Marshal(j)
 }
 
 type Datagram struct {
@@ -100,28 +153,6 @@ func receiveDatagram(ws *WrappedStream) (*Datagram, error) {
 	if err != nil {
 		return nil, err
 	}
-	msgs := make([]Msg, len(d.Msgs))
-	for i, msg := range d.Msgs {
-		var data interface{}
-		switch msg.Op {
-		case handshake:
-			dmap, ok := msg.Data.(map[string]interface{})
-			if !ok {
-				return nil, MsgError{info: "could not convert"}
-			}
-			s := fmt.Sprintf("%v", dmap["C"])
-			cint, _ := strconv.Atoi(s)
-			c := ChanID(cint)
-			data = Handshake{
-				C: c,
-			}
-		default:
-			return nil, MsgError{info: "bad msg Op"}
-		}
-		msgs[i] = Msg{Op: msg.Op, Data: data}
-	}
-	d.Msgs = msgs
-	fmt.Printf("decoded messages %v\n", d.Msgs)
 	h, ok2 := d.Msgs[0].Data.(Handshake)
 	if !ok2 {
 		return nil, MsgError{info: "could not convert 2"}
