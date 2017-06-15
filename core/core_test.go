@@ -13,6 +13,7 @@ import (
 	protocol "github.com/libp2p/go-libp2p-protocol"
 )
 
+// TestNetworkHandshake tests a handshake between two peers on two different ports
 func TestNetworkHandshake(t *testing.T) {
 	// Choose random ports between 10000-10100
 	rand.Seed(666)
@@ -31,6 +32,7 @@ func TestNetworkHandshake(t *testing.T) {
 
 	// Define a stream handler for host number 2
 	const proto = "/example/1.0.0"
+	//p1.WrapSetStreamHandler(proto, t)
 	p2.WrapSetStreamHandler(proto, t)
 
 	// Create new stream from h1 to h2 and start the conversation
@@ -40,7 +42,7 @@ func TestNetworkHandshake(t *testing.T) {
 	}
 	wrappedStream := WrapStream(stream)
 
-	p1.startHandshake(wrappedStream)
+	p1c := p1.startHandshake(wrappedStream)
 
 	err2 := p1.HandleStream(wrappedStream)
 	if err2 != nil {
@@ -48,9 +50,16 @@ func TestNetworkHandshake(t *testing.T) {
 		t.Error(err2)
 	}
 
+	t.Error("TODO: check that both peers are in READY state")
+
+	p2.sendClosingHandshake(p1c, wrappedStream)
+
+	t.Error("TODO: the closing handshake does not seem to show up at p1")
+
+	t.Error("TODO: check that the channel is closed on both peers")
+
 	stream.Close()
 
-	// TODO: check that both peers are in READY state
 }
 
 func (p *Peer) WrapSetStreamHandler(proto protocol.ID, t *testing.T) {
@@ -58,7 +67,7 @@ func (p *Peer) WrapSetStreamHandler(proto protocol.ID, t *testing.T) {
 	p.h.SetStreamHandler(proto, func(stream inet.Stream) {
 		log.Printf("%s: Received a stream", p.h.ID())
 		wrappedStream := WrapStream(stream)
-		defer stream.Close()
+		//defer stream.Close()
 		err := p.HandleStream(wrappedStream)
 		fmt.Println("handled stream")
 		if err != nil {
