@@ -239,19 +239,8 @@ func (p *Peer) setupStreamHandler() {
 
 		remote := s.Conn().RemotePeer()
 		log.Printf("%s received a stream from %s", p.h.ID(), remote)
-		//remote := stream.Conn().RemotePeer()
-		//ws, ok := p.streams[remote]
-		// if !ok {
-		// 	// this is a new stream we don't know about?
-		// 	log.Printf("%s: Received a stream from %s", p.h.ID(), remote)
-		// 	ws = WrapStream(stream)
-		// 	p.streams[remote] = ws
-		// }
 		defer s.Close()
 		ws := WrapStream(s)
-		// buf := make([]byte, 1)
-		// n, err2 := ws.r.Read(buf)
-		// log.Printf("%v read %v bytes, err=%v", p.id(), n, err2)
 		err := p.HandleStream(ws)
 		log.Println("handled stream")
 		if err != nil {
@@ -301,14 +290,6 @@ func (p *Peer) sendDatagram(d Datagram, c ChanID) error {
 
 	ws := WrapStream(s)
 
-	// cstruct, ok := p.chans[c]
-	// if !ok {
-	// 	return errors.New(fmt.Sprintf("bad channel id %v", c))
-	// }
-	// ws := cstruct.stream
-	// if ws == nil {
-	// 	return errors.New(fmt.Sprintf("channel %v has no stream set", c))
-	// }
 	log.Printf("%v sending datagram %v\n", p.id(), d)
 	err2 := ws.enc.Encode(d)
 	if err2 != nil {
@@ -330,13 +311,6 @@ func (p *Peer) handleDatagram(d *Datagram, ws *WrappedStream) error {
 	}
 	for _, msg := range d.Msgs {
 		cid := d.ChanID
-		// if cid == 0 {
-		// 	// special channel 0 for incoming handshake messages
-		// 	// set up a channel here, so that all downstream functions
-		// 	// can act on channels and not have to worry about streams
-		// 	cid = chooseOurID()
-		// 	p.addChan(cid, 0, 0, begin, ws.stream.Conn().RemotePeer())
-		// }
 		_, ok := p.chans[cid]
 		if !ok {
 			return errors.New("channel not found")
