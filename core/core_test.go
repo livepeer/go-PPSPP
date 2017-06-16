@@ -50,8 +50,8 @@ func TestNetworkHandshake(t *testing.T) {
 	}
 
 	time.Sleep(3 * time.Second)
-
-	t.Error("TODO: check that the channel is closed on both peers")
+	checkNoChannel(t, sid, p1, p2.id())
+	checkNoChannel(t, sid, p2, p1.id())
 
 	// p1.Disconnect(p2.h.ID())
 	// p2.Disconnect(p1.h.ID())
@@ -65,6 +65,7 @@ func peerExchangeIDAddr(p1 *Peer, p2 *Peer) {
 	h2.Peerstore().AddAddrs(h1.ID(), h1.Addrs(), ps.PermanentAddrTTL)
 }
 
+// checkState checks that the peer's ProtocolState is equal to state for swarm sid for the remote peer
 func checkState(t *testing.T, sid SwarmID, p *Peer, remote peer.ID, state ProtocolState) {
 	foundState, err := p.ProtocolState(sid, remote)
 	if err != nil {
@@ -72,6 +73,14 @@ func checkState(t *testing.T, sid SwarmID, p *Peer, remote peer.ID, state Protoc
 	}
 	if foundState != state {
 		t.Errorf("%v state=%v, not %v after handshake", p.id(), foundState, state)
+	}
+}
+
+// checkNoChannel checks that peer p does not have a channel for swarm sid for the remote peer
+func checkNoChannel(t *testing.T, sid SwarmID, p *Peer, remote peer.ID) {
+	foundState, err := p.ProtocolState(sid, remote)
+	if !(foundState == unknown && err != nil) {
+		t.Errorf("%v found a channel for sid=%v, remote=%v", p.id(), sid, remote)
 	}
 }
 
