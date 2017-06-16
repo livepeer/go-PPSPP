@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 
 	json0 "encoding/json"
 
@@ -430,6 +431,20 @@ func NewBasicHost(port int) host.Host {
 	n, _ := libp2pswarm.NewNetwork(context.Background(),
 		[]ma.Multiaddr{listen}, pid, ps, nil)
 	return bhost.New(n)
+}
+
+func (p *Peer) randomUnusedChanID() ChanID {
+	// FIXME: seed should be based on time.now or something, but maybe
+	// deterministic in some test/debug mode
+	rand.Seed(486)
+	maxUint32 := int(^uint32(0))
+	for {
+		c := ChanID(rand.Intn(maxUint32))
+		_, ok := p.chans[c]
+		if !ok && c != 0 {
+			return c
+		}
+	}
 }
 
 // Connect creates a stream from p to the peer at id and sets a stream handler
