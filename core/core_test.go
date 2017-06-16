@@ -1,79 +1,58 @@
 package core
 
 import (
-	"context"
 	"log"
 	"math/rand"
 	"testing"
+	"time"
 
-	"fmt"
-
-	inet "github.com/libp2p/go-libp2p-net"
 	ps "github.com/libp2p/go-libp2p-peerstore"
-	protocol "github.com/libp2p/go-libp2p-protocol"
 )
 
 // TestNetworkHandshake tests a handshake between two peers on two different ports
 func TestNetworkHandshake(t *testing.T) {
-	// Choose random ports between 10000-10100
+	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
+	// connect them in one thread.
+	t.Error("TODO: consider doing all setup in two different go routines")
 	rand.Seed(666)
 	port1 := rand.Intn(100) + 10000
 	port2 := port1 + 1
-
-	// Make 2 peers
 	p1 := NewPeer(port1)
 	p2 := NewPeer(port2)
+	peerExchangeIDAddr(p1, p2)
+	log.Printf("This is a conversation between %s and %s\n", p1.h.ID(), p2.h.ID())
+	// ws1, err1 := p1.Connect(p2.h.ID())
+	// if err1 != nil {
+	// 	t.Fatal(err1)
+	// }
+	// _, err2 := p2.Connect(p1.h.ID())
+	// if err2 != nil {
+	// 	t.Fatal(err2)
+	// }
+
+	// kick off the handshake
+	err := p1.startHandshake(p2.h.ID())
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Error("TODO: instead of sleep, check that both peers are in READY state")
+	time.Sleep(5 * time.Second)
+
+	t.Error("TODO: p2.sendClosingHandshake(p1c, wrappedStream)")
+	t.Error("TODO: the closing handshake does not seem to show up at p1")
+	t.Error("TODO: check that the channel is closed on both peers")
+
+	// p1.Disconnect(p2.h.ID())
+	// p2.Disconnect(p1.h.ID())
+}
+
+// magic exchange of peer IDs and addrs
+func peerExchangeIDAddr(p1 *Peer, p2 *Peer) {
 	h1 := p1.h
 	h2 := p2.h
 	h1.Peerstore().AddAddrs(h2.ID(), h2.Addrs(), ps.PermanentAddrTTL)
 	h2.Peerstore().AddAddrs(h1.ID(), h1.Addrs(), ps.PermanentAddrTTL)
-
-	log.Printf("This is a conversation between %s and %s\n", h1.ID(), h2.ID())
-
-	// Define a stream handler for host number 2
-	const proto = "/example/1.0.0"
-	//p1.WrapSetStreamHandler(proto, t)
-	p2.WrapSetStreamHandler(proto, t)
-
-	// Create new stream from h1 to h2 and start the conversation
-	stream, err := h1.NewStream(context.Background(), h2.ID(), proto)
-	if err != nil {
-		log.Fatal(err)
-	}
-	wrappedStream := WrapStream(stream)
-
-	p1c := p1.startHandshake(wrappedStream)
-
-	err2 := p1.HandleStream(wrappedStream)
-	if err2 != nil {
-		fmt.Println("error")
-		t.Error(err2)
-	}
-
-	t.Error("TODO: check that both peers are in READY state")
-
-	p2.sendClosingHandshake(p1c, wrappedStream)
-
-	t.Error("TODO: the closing handshake does not seem to show up at p1")
-
-	t.Error("TODO: check that the channel is closed on both peers")
-
-	stream.Close()
-
-}
-
-func (p *Peer) WrapSetStreamHandler(proto protocol.ID, t *testing.T) {
-	fmt.Println("setting stream handler")
-	p.h.SetStreamHandler(proto, func(stream inet.Stream) {
-		log.Printf("%s: Received a stream", p.h.ID())
-		wrappedStream := WrapStream(stream)
-		//defer stream.Close()
-		err := p.HandleStream(wrappedStream)
-		fmt.Println("handled stream")
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
 }
 
 // HANDSHAKE Tests TODO (from the RFC):

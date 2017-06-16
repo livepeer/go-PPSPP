@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	json0 "encoding/json"
 
@@ -12,18 +13,20 @@ import (
 
 	"bytes"
 
-	"github.com/golang/glog"
+	//"github.com/golang/glog"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	host "github.com/libp2p/go-libp2p-host"
 	inet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
 	ps "github.com/libp2p/go-libp2p-peerstore"
-	swarm "github.com/libp2p/go-libp2p-swarm"
+	libp2pswarm "github.com/libp2p/go-libp2p-swarm"
 	bhost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	ma "github.com/multiformats/go-multiaddr"
 	multicodec "github.com/multiformats/go-multicodec"
 	json "github.com/multiformats/go-multicodec/json"
 )
+
+const proto = "/example/1.0.0"
 
 // MsgError is an error that happens while handling an incoming message
 type MsgError struct {
@@ -37,11 +40,35 @@ func (e MsgError) Error() string {
 }
 
 // ChanID identifies a channel
-type ChanID uint
+type ChanID uint32
+
+// SwarmID identifies a swarm
+type SwarmID uint32
 
 // Opcode identifies the type of message
 type Opcode uint8
 
+// From the RFC:
+//   +----------+------------------+
+//   | Msg Type | Description      |
+//   +----------+------------------+
+//   | 0        | HANDSHAKE        |
+//   | 1        | DATA             |
+//   | 2        | ACK              |
+//   | 3        | HAVE             |
+//   | 4        | INTEGRITY        |
+//   | 5        | PEX_RESv4        |
+//   | 6        | PEX_REQ          |
+//   | 7        | SIGNED_INTEGRITY |
+//   | 8        | REQUEST          |
+//   | 9        | CANCEL           |
+//   | 10       | CHOKE            |
+//   | 11       | UNCHOKE          |
+//   | 12       | PEX_RESv6        |
+//   | 13       | PEX_REScert      |
+//   | 14-254   | Unassigned       |
+//   | 255      | Reserved         |
+//   +----------+------------------+
 const (
 	handshake Opcode = 13 // weird number so it's easier to notice in debug info
 )
@@ -52,6 +79,7 @@ type MsgData interface{}
 // Handshake holds a handshake message data payload
 type Handshake struct {
 	C ChanID
+	S SwarmID
 	// TODO: swarm SwarmMetadata
 	// TODO: peer capabilities
 }
@@ -112,7 +140,7 @@ func (m Msg) MarshalJSON() ([]byte, error) {
 		gob.Register(Handshake{})
 		err := enc.Encode(m.Data.(Handshake))
 		if err != nil {
-			return nil, errors.New("Failed to marshal Handshake")
+			return nil, fmt.Errorf("Failed to marshal Handshake: %v", err)
 		}
 	default:
 		return nil, errors.New("failed to marshal message data")
@@ -140,31 +168,115 @@ const (
 
 // Chan holds the current state of a channel
 type Chan struct {
-	ours   ChanID // receiving channel id (unique)
-	theirs ChanID // sending channel id
-	state  ProtocolState
+	//ours   ChanID // receiving channel id (unique)
+	//theirs ChanID // sending channel id
+	sw     SwarmID        // the swarm that this channel is communicating for
+	theirs ChanID         // remote id to attach to outgoing datagrams on this channel
+	state  ProtocolState  // current state of the protocol on this channel
+	stream *WrappedStream // stream to use for sending and receiving datagrams on this channel
+	remote peer.ID        // peer.ID of the remote peer
+}
+
+type swarm struct {
+	// chans is a peer ID -> channel ID map for this swarm
+	// it does not include this peer, because this peer does not have a local channel ID
+	chans map[peer.ID]ChanID
+	// TODO: other swarm metadata stored here
 }
 
 // Peer is currently just a couple of things related to a peer (as defined in the RFC)
 type Peer struct {
-	chans map[ChanID](*Chan) // indexed by our local channel ID
-	h     host.Host
+	// libp2p Host interface
+	h host.Host
+
+	// all of this peer's channels, indexed by a local ChanID
+	chans map[ChanID]*Chan
+
+	// all of this peer's swarms, indexed by a global? SwarmID
+	swarms map[SwarmID]*swarm
+
+	// all of this peer's streams, indexed by a global? peer.ID
+	streams map[peer.ID]*WrappedStream
+
+	streamHackBool bool
+}
+
+func newSwarm() *swarm {
+	chans := make(map[peer.ID]ChanID)
+	return &swarm{chans: chans}
 }
 
 // NewPeer makes and initializes a new peer
 func NewPeer(port int) *Peer {
+
+	// initially, there are no locally known swarms
+	swarms := make(map[SwarmID](*swarm))
+
 	chans := make(map[ChanID](*Chan))
-	chans[0] = &Chan{0, 0, begin}
+	// Special channel 0 is the reserved channel for incoming starting handshakes
+	chans[0] = &Chan{}
+	chans[0].state = begin
+
+	// initially, no streams
+	streams := make(map[peer.ID](*WrappedStream))
+
+	// Create a basic host to implement the libp2p Host interface
 	h := NewBasicHost(port)
-	return &Peer{chans: chans, h: h}
+
+	p := Peer{chans: chans, h: h, swarms: swarms, streams: streams}
+
+	// setup stream handler so we can immediately start receiving
+	p.setupStreamHandler()
+
+	return &p
+}
+
+func (p *Peer) id() peer.ID {
+	return p.h.ID()
+}
+
+func (p *Peer) setupStreamHandler() {
+	p.streamHackBool = true
+
+	log.Println("setting stream handler")
+	p.h.SetStreamHandler(proto, func(s inet.Stream) {
+
+		remote := s.Conn().RemotePeer()
+		log.Printf("%s received a stream from %s", p.h.ID(), remote)
+		//remote := stream.Conn().RemotePeer()
+		//ws, ok := p.streams[remote]
+		// if !ok {
+		// 	// this is a new stream we don't know about?
+		// 	log.Printf("%s: Received a stream from %s", p.h.ID(), remote)
+		// 	ws = WrapStream(stream)
+		// 	p.streams[remote] = ws
+		// }
+		if p.streamHackBool {
+			log.Printf("%s streamhackbool 2", p.h.ID())
+			defer s.Close()
+			ws := WrapStream(s)
+			// buf := make([]byte, 1)
+			// n, err2 := ws.r.Read(buf)
+			// log.Printf("%v read %v bytes, err=%v", p.id(), n, err2)
+			err := p.HandleStream(ws)
+			log.Println("handled stream")
+			if err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			log.Printf("%s streamhackbool 1", p.h.ID())
+			p.streamHackBool = true
+		}
+
+	})
 }
 
 // HandleStream handles an incoming stream
 // TODO: not sure how this works wrt multiple incoming datagrams
 func (p *Peer) HandleStream(ws *WrappedStream) error {
-	fmt.Println("handling stream")
-	d, err := receiveDatagram(ws)
-	fmt.Println("recvd Datagram")
+	log.Printf("%v handling stream", p.id())
+	d, err := p.receiveDatagram(ws)
+	log.Printf("%v recvd Datagram", p.id())
 	if err != nil {
 		return err
 	}
@@ -172,37 +284,74 @@ func (p *Peer) HandleStream(ws *WrappedStream) error {
 }
 
 // receiveDatagram reads and decodes a datagram from the stream
-func receiveDatagram(ws *WrappedStream) (*Datagram, error) {
+func (p *Peer) receiveDatagram(ws *WrappedStream) (*Datagram, error) {
+	log.Printf("%v receiveDatagram", p.id())
+	if ws == nil {
+		return nil, fmt.Errorf("%v receiveDatagram on nil *WrappedStream", p.h.ID())
+	}
 	var d Datagram
 	err := ws.dec.Decode(&d)
-	fmt.Printf("receiving datagram %v\n", d)
+	log.Printf("decoded datagram %v\n", d)
 	if err != nil {
 		return nil, err
 	}
-	h, ok2 := d.Msgs[0].Data.(Handshake)
-	if !ok2 {
-		return nil, MsgError{info: "could not convert 2"}
-	}
-	fmt.Printf("decoded handshake=%v\n", h)
 	return &d, nil
 }
 
-// sendDatagram encodes and writes a datagram to the stream
-func sendDatagram(d Datagram, ws *WrappedStream) error {
-	fmt.Printf("sending datagram %v\n", d)
-	err := ws.enc.Encode(d)
+// sendDatagram encodes and writes a datagram to the channel
+func (p *Peer) sendDatagram(d Datagram, c ChanID) error {
+	_, ok := p.chans[c]
+	if !ok {
+		return errors.New("could not find channel")
+	}
+	s, err := p.h.NewStream(context.Background(), p.chans[c].remote, proto)
+	if err != nil {
+		return err
+	}
+
+	ws := WrapStream(s)
+
+	// cstruct, ok := p.chans[c]
+	// if !ok {
+	// 	return errors.New(fmt.Sprintf("bad channel id %v", c))
+	// }
+	// ws := cstruct.stream
+	// if ws == nil {
+	// 	return errors.New(fmt.Sprintf("channel %v has no stream set", c))
+	// }
+	log.Printf("%v sending datagram %v\n", p.id(), d)
+	err2 := ws.enc.Encode(d)
+	if err2 != nil {
+		return fmt.Errorf("send datagram encode error %v", err2)
+	}
 	// Because output is buffered with bufio, we need to flush!
-	ws.w.Flush()
-	return err
+	err3 := ws.w.Flush()
+	log.Printf("%v flushed datagram", p.id())
+	if err3 != nil {
+		return fmt.Errorf("send datagram flush error: %v", err3)
+	}
+	return nil
 }
 
 func (p *Peer) handleDatagram(d *Datagram, ws *WrappedStream) error {
-	fmt.Printf("handling datagram %v\n", d)
+	log.Printf("%v handling datagram %v\n", p.id(), d)
 	if len(d.Msgs) == 0 {
 		return errors.New("no messages in datagram")
 	}
 	for _, msg := range d.Msgs {
-		err := p.handleMsg(p.chans[d.ChanID], msg, ws)
+		cid := d.ChanID
+		if cid == 0 {
+			// special channel 0 for incoming handshake messages
+			// set up a channel here, so that all downstream functions
+			// can act on channels and not have to worry about streams
+			cid = chooseOurID()
+			p.addChan(cid, 0, 0, begin, ws.stream.Conn().RemotePeer())
+		}
+		_, ok := p.chans[cid]
+		if !ok {
+			return errors.New("channel not found")
+		}
+		err := p.handleMsg(cid, msg)
 		if err != nil {
 			return err
 		}
@@ -210,103 +359,113 @@ func (p *Peer) handleDatagram(d *Datagram, ws *WrappedStream) error {
 	return nil
 }
 
-func (p *Peer) handleMsg(c *Chan, m Msg, ws *WrappedStream) error {
+func (p *Peer) handleMsg(c ChanID, m Msg) error {
 	switch m.Op {
 	case handshake:
-		return p.handleHandshake(c, m, ws)
+		return p.handleHandshake(c, m)
 	default:
-		return MsgError{c: c.ours, m: m, info: "bad opcode"}
+		return MsgError{m: m, info: "bad opcode"}
 	}
 }
 
-func (p *Peer) handleHandshake(c *Chan, m Msg, ws *WrappedStream) error {
-	fmt.Println("handling handshake")
+func (p *Peer) handleHandshake(cid ChanID, m Msg) error {
+	log.Printf("%v handling handshake", p.id())
 	h, ok := m.Data.(Handshake)
 	if !ok {
-		return MsgError{c: c.ours, m: m, info: "could not convert to HANDSHAKE"}
+		return MsgError{c: cid, m: m, info: "could not convert to HANDSHAKE"}
 	}
+	c := p.chans[cid]
 	switch c.state {
 	case begin:
-		fmt.Println("in begin state")
-		if c.ours != 0 {
-			return MsgError{c: c.ours, m: m, info: "HANDSHAKE must use channel ID 0"}
-		}
+		log.Println("in begin state")
+		// if cid != 0 {
+		// 	return MsgError{c: cid, m: m, info: "HANDSHAKE must use channel ID 0"}
+		// }
 		if h.C < 1 {
-			return MsgError{c: c.ours, m: m, info: "HANDSHAKE cannot request channel ID 0"}
+			return MsgError{c: cid, m: m, info: "HANDSHAKE cannot request channel ID 0"}
 		}
-		ours := chooseOurID()
-		p.setupChan(ours, h.C, ready)
-		p.sendReplyHandshake(ours, h.C, ws)
+		p.chans[cid].sw = h.S
+		p.chans[cid].theirs = h.C
+		p.chans[cid].state = ready
+		log.Printf("%v moving to ready state", p.id())
+		p.sendReplyHandshake(cid, h.C)
 	case waitHandshake:
-		fmt.Println("in waitHandshake state")
+		log.Println("in waitHandshake state")
 		if h.C == 0 {
-			fmt.Println("received closing handshake")
-			p.closeChannel(c.ours)
+			log.Println("received closing handshake")
+			p.closeChannel(cid)
 		} else {
 			c.theirs = h.C
+			log.Printf("%v moving to ready state", p.id())
 			c.state = ready
 		}
 	case ready:
-		fmt.Println("in ready state")
+		log.Println("in ready state")
 		if h.C == 0 {
-			fmt.Println("received closing handshake")
-			p.closeChannel(c.ours)
+			log.Println("received closing handshake")
+			p.closeChannel(cid)
 		} else {
-			return MsgError{c: c.ours, m: m, info: "got non-closing handshake while in ready state"}
+			return MsgError{c: cid, m: m, info: "got non-closing handshake while in ready state"}
 		}
 	default:
-		return MsgError{c: c.ours, m: m, info: "bad channel state"}
+		return MsgError{c: cid, m: m, info: "bad channel state"}
 	}
 	return nil
 }
 
-func (p *Peer) closeChannel(c ChanID) {
-	fmt.Println("closing channel")
+func (p *Peer) closeChannel(c ChanID) error {
+	log.Println("closing channel")
 	delete(p.chans, c)
+	return nil
 }
 
-func (p *Peer) setupChan(ours ChanID, theirs ChanID, state ProtocolState) error {
+// addChan adds a channel at the key ours
+func (p *Peer) addChan(ours ChanID, sw SwarmID, theirs ChanID, state ProtocolState, remote peer.ID) error {
 	if ours < 1 {
 		return errors.New("cannot setup channel with ours<1")
 	}
-	p.chans[ours] = &Chan{ours: ours, theirs: theirs, state: state}
+	p.chans[ours] = &Chan{sw: sw, theirs: theirs, state: state, remote: remote}
 	return nil
 }
 
-func (p *Peer) startHandshake(ws *WrappedStream) ChanID {
-	fmt.Println("starting handshake")
+func (p *Peer) startHandshake(remote peer.ID) error {
+	log.Printf("%v starting handshake", p.id())
 	ours := chooseOurID()
+	swarmID := SwarmID(0) // TODO
 	// their channel is 0 until they reply with a handshake
-	p.setupChan(ours, 0, begin)
+	p.addChan(ours, swarmID, 0, begin, remote)
 	p.chans[ours].state = waitHandshake
-	p.sendReqHandshake(ours, ws)
-	return ours
+	return p.sendReqHandshake(ours)
 }
 
-func (p *Peer) sendReqHandshake(ours ChanID, ws *WrappedStream) {
-	fmt.Println("Peer sending request HANDSHAKE")
-	glog.Info("Peer sending request HANDSHAKE")
-	p.sendHandshake(ours, 0, ws)
+func (p *Peer) sendReqHandshake(ours ChanID) error {
+	log.Printf("%v sending request HANDSHAKE", p.id())
+	return p.sendHandshake(ours, 0)
 }
 
-func (p *Peer) sendReplyHandshake(ours ChanID, theirs ChanID, ws *WrappedStream) {
-	fmt.Println("Peer sending reply HANDSHAKE")
-	glog.Info("Peer sending reply HANDSHAKE")
-	p.sendHandshake(ours, theirs, ws)
+func (p *Peer) sendReplyHandshake(ours ChanID, theirs ChanID) error {
+	log.Printf("%v sending reply HANDSHAKE", p.id())
+	return p.sendHandshake(ours, theirs)
 }
 
-func (p *Peer) sendClosingHandshake(ours ChanID, ws *WrappedStream) {
-	fmt.Println("Peer sending closing HANDSHAKE")
-	// use our chanID to look up the channel, then get theirs from the channel
-	p.sendHandshake(0, p.chans[ours].theirs, ws)
-	p.closeChannel(ours)
+func (p *Peer) sendClosingHandshake(ours ChanID) error {
+	log.Printf("%v sending closing HANDSHAKE", p.id())
+	// handshake with c=0 will signal a close handshake
+	h := Handshake{C: 0}
+	m := Msg{Op: handshake, Data: h}
+	d := Datagram{ChanID: p.chans[ours].theirs, Msgs: []Msg{m}}
+	err := p.sendDatagram(d, ours)
+	if err != nil {
+		return err
+	}
+	return p.closeChannel(ours)
 }
 
-func (p *Peer) sendHandshake(ours ChanID, theirs ChanID, ws *WrappedStream) {
+func (p *Peer) sendHandshake(ours ChanID, theirs ChanID) error {
 	h := Handshake{C: ours}
 	m := Msg{Op: handshake, Data: h}
 	d := Datagram{ChanID: theirs, Msgs: []Msg{m}}
-	sendDatagram(d, ws)
+	return p.sendDatagram(d, ours)
 }
 
 func chooseOurID() ChanID {
@@ -358,7 +517,37 @@ func NewBasicHost(port int) host.Host {
 	ps := ps.NewPeerstore()
 	ps.AddPrivKey(pid, priv)
 	ps.AddPubKey(pid, pub)
-	n, _ := swarm.NewNetwork(context.Background(),
+	n, _ := libp2pswarm.NewNetwork(context.Background(),
 		[]ma.Multiaddr{listen}, pid, ps, nil)
 	return bhost.New(n)
 }
+
+// Adds a swarm with a given ID
+func (p *Peer) AddSwarm(id SwarmID) {
+	p.swarms[id] = newSwarm()
+}
+
+// Connect creates a stream from p to the peer at id and sets a stream handler
+// func (p *Peer) Connect(id peer.ID) (*WrappedStream, error) {
+// 	log.Printf("%s: Connecting to %s", p.h.ID(), id)
+// 	stream, err := p.h.NewStream(context.Background(), id, proto)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	ws := WrapStream(stream)
+
+// 	p.streams[id] = ws
+
+// 	return ws, nil
+// }
+
+// Disconnect closes the stream that p is using to connect to the peer at id
+// func (p *Peer) Disconnect(id peer.ID) error {
+// 	ws, ok := p.streams[id]
+// 	if ok {
+// 		ws.stream.Close()
+// 		return nil
+// 	}
+// 	return errors.New("disconnect error, no stream to close")
+// }
