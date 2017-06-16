@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	peer "github.com/libp2p/go-libp2p-peer"
 	ps "github.com/libp2p/go-libp2p-peerstore"
 )
 
@@ -39,8 +40,9 @@ func TestNetworkHandshake(t *testing.T) {
 		t.Error(err1)
 	}
 
-	t.Error("TODO: instead of sleep, check that both peers are in READY state")
 	time.Sleep(3 * time.Second)
+	checkState(t, sid, p1, p2.id(), ready)
+	checkState(t, sid, p2, p1.id(), ready)
 
 	err2 := p2.sendClosingHandshake(p1.id(), sid)
 	if err2 != nil {
@@ -61,6 +63,16 @@ func peerExchangeIDAddr(p1 *Peer, p2 *Peer) {
 	h2 := p2.h
 	h1.Peerstore().AddAddrs(h2.ID(), h2.Addrs(), ps.PermanentAddrTTL)
 	h2.Peerstore().AddAddrs(h1.ID(), h1.Addrs(), ps.PermanentAddrTTL)
+}
+
+func checkState(t *testing.T, sid SwarmID, p *Peer, remote peer.ID, state ProtocolState) {
+	foundState, err := p.ProtocolState(sid, remote)
+	if err != nil {
+		t.Errorf("could not get state for %v: %v", p.id(), err)
+	}
+	if foundState != state {
+		t.Errorf("%v state=%v, not %v after handshake", p.id(), foundState, state)
+	}
 }
 
 // HANDSHAKE Tests TODO (from the RFC):
