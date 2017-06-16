@@ -78,6 +78,9 @@ func checkState(t *testing.T, sid SwarmID, p *Peer, remote peer.ID, state Protoc
 
 // checkNoChannel checks that peer p does not have a channel for swarm sid for the remote peer
 func checkNoChannel(t *testing.T, sid SwarmID, p *Peer, remote peer.ID) {
+	// This is a bit of a hacky round-about way to check that there is not channel
+	// We should write a function with receiver (p *Peer) that actually checks if the channel exists
+	// in the Peer object, but the ProtocolState function essentially does that already.
 	foundState, err := p.ProtocolState(sid, remote)
 	if !(foundState == unknown && err != nil) {
 		t.Errorf("%v found a channel for sid=%v, remote=%v", p.id(), sid, remote)

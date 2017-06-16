@@ -13,7 +13,6 @@ import (
 
 	"bytes"
 
-	//"github.com/golang/glog"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	host "github.com/libp2p/go-libp2p-host"
 	inet "github.com/libp2p/go-libp2p-net"
@@ -98,59 +97,6 @@ type msgAux struct {
 	Data []byte
 }
 
-// UnmarshalJSON handles the deserializing of a message.
-//
-// We can't get away with off-the-shelf JSON, because
-// we're using an interface type for MsgData, which causes problems
-// on the decode side.
-func (m *Msg) UnmarshalJSON(b []byte) error {
-	// Use builtin json to unmarshall into aux
-	var aux msgAux
-	json0.Unmarshal(b, &aux)
-
-	// The Op field in aux is already what we want for m.Op
-	m.Op = aux.Op
-
-	// decode the gob in aux.Data and put it in m.Data
-	dec := gob.NewDecoder(bytes.NewBuffer(aux.Data))
-	switch aux.Op {
-	case handshake:
-		var h Handshake
-		err := dec.Decode(&h)
-		if err != nil {
-			return errors.New("failed to decode handshake")
-		}
-		m.Data = h
-	default:
-		return errors.New("failed to decode message data")
-	}
-
-	return nil
-}
-
-// MarshalJSON handles the serializing of a message.
-//
-// See note above UnmarshalJSON for the reason for the custom MarshalJSON
-func (m Msg) MarshalJSON() ([]byte, error) {
-	// Encode m.Data into a gob
-	var b bytes.Buffer
-	enc := gob.NewEncoder(&b)
-	switch m.Data.(type) {
-	case Handshake:
-		gob.Register(Handshake{})
-		err := enc.Encode(m.Data.(Handshake))
-		if err != nil {
-			return nil, fmt.Errorf("Failed to marshal Handshake: %v", err)
-		}
-	default:
-		return nil, errors.New("failed to marshal message data")
-	}
-
-	// build an aux and marshal using built-in json
-	aux := msgAux{Op: m.Op, Data: b.Bytes()}
-	return json0.Marshal(aux)
-}
-
 // Datagram holds a protocol datagram
 type Datagram struct {
 	ChanID ChanID
@@ -203,6 +149,11 @@ type Peer struct {
 func newSwarm() *swarm {
 	chans := make(map[peer.ID]ChanID)
 	return &swarm{chans: chans}
+}
+
+// Adds a swarm with a given ID
+func (p *Peer) AddSwarm(id SwarmID) {
+	p.swarms[id] = newSwarm()
 }
 
 // NewPeer makes and initializes a new peer
@@ -333,54 +284,6 @@ func (p *Peer) handleMsg(c ChanID, m Msg, remote peer.ID) error {
 	}
 }
 
-func (p *Peer) handleHandshake(cid ChanID, m Msg, remote peer.ID) error {
-	log.Printf("%v handling handshake", p.id())
-	h, ok := m.Data.(Handshake)
-	if !ok {
-		return MsgError{c: cid, m: m, info: "could not convert to HANDSHAKE"}
-	}
-
-	// cid==0 means this is an incoming starting handshake
-	if cid == 0 {
-		if h.C < 1 {
-			return MsgError{c: cid, m: m, info: "handshake cannot request channel ID 0"}
-		}
-		// need to create a new channel
-		newCID := chooseOurID()
-		p.addChan(newCID, h.S, h.C, ready, remote)
-		log.Printf("%v moving to ready state", p.id())
-		p.sendReplyHandshake(newCID, h.C, h.S)
-	} else {
-		c := p.chans[cid]
-		switch c.state {
-		case begin:
-			return MsgError{c: cid, m: m, info: "starting handshake must use channel ID 0"}
-		case waitHandshake:
-			c := p.chans[cid]
-			log.Println("in waitHandshake state")
-			if h.C == 0 {
-				log.Println("received closing handshake")
-				p.closeChannel(cid)
-			} else {
-				c.theirs = h.C
-				log.Printf("%v moving to ready state", p.id())
-				c.state = ready
-			}
-		case ready:
-			log.Println("in ready state")
-			if h.C == 0 {
-				log.Println("received closing handshake")
-				p.closeChannel(cid)
-			} else {
-				return MsgError{c: cid, m: m, info: "got non-closing handshake while in ready state"}
-			}
-		default:
-			return MsgError{c: cid, m: m, info: "bad channel state"}
-		}
-	}
-	return nil
-}
-
 func (p *Peer) closeChannel(c ChanID) error {
 	log.Println("closing channel")
 	delete(p.chans, c)
@@ -427,55 +330,6 @@ func (p *Peer) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolSt
 	return nil
 }
 
-func (p *Peer) startHandshake(remote peer.ID, sid SwarmID) error {
-	log.Printf("%v starting handshake", p.id())
-
-	ours := chooseOurID()
-	// their channel is 0 until they reply with a handshake
-	p.addChan(ours, sid, 0, begin, remote)
-	p.chans[ours].state = waitHandshake
-	return p.sendReqHandshake(ours, sid)
-}
-
-func (p *Peer) sendReqHandshake(ours ChanID, sid SwarmID) error {
-	log.Printf("%v sending request handshake", p.id())
-	return p.sendHandshake(ours, 0, sid)
-}
-
-func (p *Peer) sendReplyHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
-	log.Printf("%v sending reply handshake", p.id())
-	return p.sendHandshake(ours, theirs, sid)
-}
-
-func (p *Peer) sendClosingHandshake(remote peer.ID, sid SwarmID) error {
-	// get chanID from peer.ID and SwarmID
-	c := p.swarms[sid].chans[remote]
-
-	log.Printf("%v sending closing handshake on sid=%v c=%v to %v", p.id(), sid, c, remote)
-	// handshake with c=0 will signal a close handshake
-	h := Handshake{C: 0}
-	m := Msg{Op: handshake, Data: h}
-	d := Datagram{ChanID: p.chans[c].theirs, Msgs: []Msg{m}}
-	log.Printf("%v sending datagram for closing handshake", p.id())
-	err := p.sendDatagram(d, c)
-	if err != nil {
-		return fmt.Errorf("sendClosingHandshake: %v", err)
-	}
-	return p.closeChannel(c)
-}
-
-func (p *Peer) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
-	h := Handshake{C: ours, S: sid}
-	m := Msg{Op: handshake, Data: h}
-	d := Datagram{ChanID: theirs, Msgs: []Msg{m}}
-	return p.sendDatagram(d, ours)
-}
-
-func chooseOurID() ChanID {
-	// TODO
-	return 7
-}
-
 // WrappedStream wraps a libp2p stream. We encode/decode whenever we
 // write/read from a stream, so we can just carry the encoders
 // and bufios with us
@@ -510,6 +364,59 @@ func WrapStream(s inet.Stream) *WrappedStream {
 	}
 }
 
+// UnmarshalJSON handles the deserializing of a message.
+//
+// We can't get away with off-the-shelf JSON, because
+// we're using an interface type for MsgData, which causes problems
+// on the decode side.
+func (m *Msg) UnmarshalJSON(b []byte) error {
+	// Use builtin json to unmarshall into aux
+	var aux msgAux
+	json0.Unmarshal(b, &aux)
+
+	// The Op field in aux is already what we want for m.Op
+	m.Op = aux.Op
+
+	// decode the gob in aux.Data and put it in m.Data
+	dec := gob.NewDecoder(bytes.NewBuffer(aux.Data))
+	switch aux.Op {
+	case handshake:
+		var h Handshake
+		err := dec.Decode(&h)
+		if err != nil {
+			return errors.New("failed to decode handshake")
+		}
+		m.Data = h
+	default:
+		return errors.New("failed to decode message data")
+	}
+
+	return nil
+}
+
+// MarshalJSON handles the serializing of a message.
+//
+// See note above UnmarshalJSON for the reason for the custom MarshalJSON
+func (m Msg) MarshalJSON() ([]byte, error) {
+	// Encode m.Data into a gob
+	var b bytes.Buffer
+	enc := gob.NewEncoder(&b)
+	switch m.Data.(type) {
+	case Handshake:
+		gob.Register(Handshake{})
+		err := enc.Encode(m.Data.(Handshake))
+		if err != nil {
+			return nil, fmt.Errorf("Failed to marshal Handshake: %v", err)
+		}
+	default:
+		return nil, errors.New("failed to marshal message data")
+	}
+
+	// build an aux and marshal using built-in json
+	aux := msgAux{Op: m.Op, Data: b.Bytes()}
+	return json0.Marshal(aux)
+}
+
 // NewBasicHost makes and initializes a basic host
 func NewBasicHost(port int) host.Host {
 	// Ignoring most errors for brevity
@@ -523,11 +430,6 @@ func NewBasicHost(port int) host.Host {
 	n, _ := libp2pswarm.NewNetwork(context.Background(),
 		[]ma.Multiaddr{listen}, pid, ps, nil)
 	return bhost.New(n)
-}
-
-// Adds a swarm with a given ID
-func (p *Peer) AddSwarm(id SwarmID) {
-	p.swarms[id] = newSwarm()
 }
 
 // Connect creates a stream from p to the peer at id and sets a stream handler
