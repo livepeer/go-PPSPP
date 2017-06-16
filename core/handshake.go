@@ -7,6 +7,16 @@ import (
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
+func (p *Peer) startHandshake(remote peer.ID, sid SwarmID) error {
+	log.Printf("%v starting handshake", p.id())
+
+	ours := chooseOurID()
+	// their channel is 0 until they reply with a handshake
+	p.addChan(ours, sid, 0, begin, remote)
+	p.chans[ours].state = waitHandshake
+	return p.sendReqHandshake(ours, sid)
+}
+
 func (p *Peer) handleHandshake(cid ChanID, m Msg, remote peer.ID) error {
 	log.Printf("%v handling handshake", p.id())
 	h, ok := m.Data.(Handshake)
@@ -53,16 +63,6 @@ func (p *Peer) handleHandshake(cid ChanID, m Msg, remote peer.ID) error {
 		}
 	}
 	return nil
-}
-
-func (p *Peer) startHandshake(remote peer.ID, sid SwarmID) error {
-	log.Printf("%v starting handshake", p.id())
-
-	ours := chooseOurID()
-	// their channel is 0 until they reply with a handshake
-	p.addChan(ours, sid, 0, begin, remote)
-	p.chans[ours].state = waitHandshake
-	return p.sendReqHandshake(ours, sid)
 }
 
 func (p *Peer) sendReqHandshake(ours ChanID, sid SwarmID) error {

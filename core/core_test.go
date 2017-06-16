@@ -14,7 +14,6 @@ import (
 func TestNetworkHandshake(t *testing.T) {
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
-	t.Error("TODO: consider doing all setup in two different go routines")
 	rand.Seed(666)
 	port1 := rand.Intn(100) + 10000
 	port2 := port1 + 1
@@ -22,9 +21,10 @@ func TestNetworkHandshake(t *testing.T) {
 	p2 := NewPeer(port2)
 	peerExchangeIDAddr(p1, p2)
 	sid := SwarmID(8)
+	log.Printf("Handshake between %s and %s on swarm %v\n", p1.id(), p2.id(), sid)
 	p1.AddSwarm(sid)
 	p2.AddSwarm(sid)
-	log.Printf("Handshake between %s and %s on swarm %v\n", p1.id(), p2.id(), sid)
+
 	// ws1, err1 := p1.Connect(p2.h.ID())
 	// if err1 != nil {
 	// 	t.Fatal(err1)
@@ -34,27 +34,69 @@ func TestNetworkHandshake(t *testing.T) {
 	// 	t.Fatal(err2)
 	// }
 
-	// kick off the handshake
-	err1 := p1.startHandshake(p2.id(), sid)
-	if err1 != nil {
-		t.Error(err1)
-	}
+	// First phase: start handshake in one thread, wait in the other
+	// Each thread checks that state is moved to ready before setting the done channel
+	done1 := make(chan bool, 1)
+	done2 := make(chan bool, 1)
+	go startNetworkHandshake(t, p1, p2.id(), sid, done1)
+	go waitNetworkHandshake(t, p2, p1.id(), sid, done2)
+	<-done1
+	<-done2
 
-	time.Sleep(3 * time.Second)
-	checkState(t, sid, p1, p2.id(), ready)
-	checkState(t, sid, p2, p1.id(), ready)
-
-	err2 := p2.sendClosingHandshake(p1.id(), sid)
-	if err2 != nil {
-		t.Error(err2)
-	}
-
-	time.Sleep(3 * time.Second)
-	checkNoChannel(t, sid, p1, p2.id())
-	checkNoChannel(t, sid, p2, p1.id())
+	// Second phase: close the handshake in one thread, wait in the other.
+	// Each thread checks that the channel is gone before setting the done channel
+	done3 := make(chan bool, 1)
+	done4 := make(chan bool, 1)
+	go waitCloseNetworkHandshake(t, p1, p2.id(), sid, done3)
+	go closeNetworkHandshake(t, p2, p1.id(), sid, done4)
+	<-done3
+	<-done4
 
 	// p1.Disconnect(p2.h.ID())
 	// p2.Disconnect(p1.h.ID())
+}
+
+func startNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, done chan bool) {
+	p.AddSwarm(sid)
+
+	// kick off the handshake
+	err := p.startHandshake(remote, sid)
+	if err != nil {
+		t.Error(err)
+	}
+
+	time.Sleep(3 * time.Second)
+
+	checkState(t, sid, p, remote, ready)
+
+	done <- true
+}
+
+func waitNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, done chan bool) {
+	time.Sleep(3 * time.Second)
+	checkState(t, sid, p, remote, ready)
+
+	done <- true
+}
+
+func closeNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, done chan bool) {
+	err := p.sendClosingHandshake(remote, sid)
+	if err != nil {
+		t.Error(err)
+	}
+
+	time.Sleep(3 * time.Second)
+	checkNoChannel(t, sid, p, remote)
+
+	done <- true
+}
+
+func waitCloseNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, done chan bool) {
+	time.Sleep(3 * time.Second)
+
+	checkNoChannel(t, sid, p, remote)
+
+	done <- true
 }
 
 // magic exchange of peer IDs and addrs
