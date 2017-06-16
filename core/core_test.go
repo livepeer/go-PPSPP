@@ -20,7 +20,10 @@ func TestNetworkHandshake(t *testing.T) {
 	p1 := NewPeer(port1)
 	p2 := NewPeer(port2)
 	peerExchangeIDAddr(p1, p2)
-	log.Printf("This is a conversation between %s and %s\n", p1.h.ID(), p2.h.ID())
+	sid := SwarmID(8)
+	p1.AddSwarm(sid)
+	p2.AddSwarm(sid)
+	log.Printf("Handshake between %s and %s on swarm %v\n", p1.id(), p2.id(), sid)
 	// ws1, err1 := p1.Connect(p2.h.ID())
 	// if err1 != nil {
 	// 	t.Fatal(err1)
@@ -31,16 +34,21 @@ func TestNetworkHandshake(t *testing.T) {
 	// }
 
 	// kick off the handshake
-	err := p1.startHandshake(p2.h.ID())
-	if err != nil {
-		t.Error(err)
+	err1 := p1.startHandshake(p2.id(), sid)
+	if err1 != nil {
+		t.Error(err1)
 	}
 
 	t.Error("TODO: instead of sleep, check that both peers are in READY state")
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 
-	t.Error("TODO: p2.sendClosingHandshake(p1c, wrappedStream)")
-	t.Error("TODO: the closing handshake does not seem to show up at p1")
+	err2 := p2.sendClosingHandshake(p1.id(), sid)
+	if err2 != nil {
+		t.Error(err2)
+	}
+
+	time.Sleep(3 * time.Second)
+
 	t.Error("TODO: check that the channel is closed on both peers")
 
 	// p1.Disconnect(p2.h.ID())
