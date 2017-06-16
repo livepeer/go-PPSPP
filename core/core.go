@@ -152,7 +152,7 @@ func newSwarm() *swarm {
 	return &swarm{chans: chans}
 }
 
-// Adds a swarm with a given ID
+// AddSwarm adds a swarm with a given ID
 func (p *Peer) AddSwarm(id SwarmID) {
 	p.swarms[id] = newSwarm()
 }
@@ -446,6 +446,10 @@ func (p *Peer) randomUnusedChanID() ChanID {
 		}
 	}
 }
+
+// Connect/Disconnect functions ... for the optimization where we keep the streams open between datagrams
+// I tried this and ended up falling back to the simpler approach where the stream is opened on the send,
+// closed on the receive. Not yet sure exactly what to do here, but I think we can put this off for now.
 
 // Connect creates a stream from p to the peer at id and sets a stream handler
 // func (p *Peer) Connect(id peer.ID) (*WrappedStream, error) {
