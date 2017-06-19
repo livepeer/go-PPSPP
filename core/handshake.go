@@ -12,8 +12,8 @@ func (p *Peer) startHandshake(remote peer.ID, sid SwarmID) error {
 
 	ours := p.chooseOurID()
 	// their channel is 0 until they reply with a handshake
-	p.addChan(ours, sid, 0, begin, remote)
-	p.chans[ours].state = waitHandshake
+	p.addChan(ours, sid, 0, Begin, remote)
+	p.chans[ours].state = WaitHandshake
 	return p.sendReqHandshake(ours, sid)
 }
 
@@ -31,15 +31,15 @@ func (p *Peer) handleHandshake(cid ChanID, m Msg, remote peer.ID) error {
 		}
 		// need to create a new channel
 		newCID := p.chooseOurID()
-		p.addChan(newCID, h.S, h.C, ready, remote)
+		p.addChan(newCID, h.S, h.C, Ready, remote)
 		log.Printf("%v moving to ready state", p.id())
 		p.sendReplyHandshake(newCID, h.C, h.S)
 	} else {
 		c := p.chans[cid]
 		switch c.state {
-		case begin:
+		case Begin:
 			return MsgError{c: cid, m: m, info: "starting handshake must use channel ID 0"}
-		case waitHandshake:
+		case WaitHandshake:
 			c := p.chans[cid]
 			log.Println("in waitHandshake state")
 			if h.C == 0 {
@@ -48,9 +48,9 @@ func (p *Peer) handleHandshake(cid ChanID, m Msg, remote peer.ID) error {
 			} else {
 				c.theirs = h.C
 				log.Printf("%v moving to ready state", p.id())
-				c.state = ready
+				c.state = Ready
 			}
-		case ready:
+		case Ready:
 			log.Println("in ready state")
 			if h.C == 0 {
 				log.Println("received closing handshake")

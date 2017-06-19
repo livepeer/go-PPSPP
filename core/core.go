@@ -108,10 +108,17 @@ type Datagram struct {
 type ProtocolState uint
 
 const (
-	unknown       ProtocolState = 0 // used for errors
-	begin         ProtocolState = 1
-	waitHandshake ProtocolState = 2 // waiting for ack of first handshake
-	ready         ProtocolState = 3
+	// Unknown state is used for errors.
+	Unknown ProtocolState = 0
+
+	// Begin is the initial state before a handshake.
+	Begin ProtocolState = 1
+
+	// WaitHandshake means waiting for ack of the first handshake.
+	WaitHandshake ProtocolState = 2
+
+	// Ready means the handshake is complete and the peer is ready for other types of messages.
+	Ready ProtocolState = 3
 )
 
 // Chan holds the current state of a channel
@@ -166,7 +173,7 @@ func NewPeer(port int) *Peer {
 	chans := make(map[ChanID](*Chan))
 	// Special channel 0 is the reserved channel for incoming starting handshakes
 	chans[0] = &Chan{}
-	chans[0].state = begin
+	chans[0].state = Begin
 
 	// initially, no streams
 	streams := make(map[peer.ID](*WrappedStream))
@@ -296,15 +303,15 @@ func (p *Peer) closeChannel(c ChanID) error {
 func (p *Peer) ProtocolState(sid SwarmID, pid peer.ID) (ProtocolState, error) {
 	s, ok1 := p.swarms[sid]
 	if !ok1 {
-		return unknown, fmt.Errorf("%v: ProtocolState could not find swarm at sid=%v", p.id(), sid)
+		return Unknown, fmt.Errorf("%v: ProtocolState could not find swarm at sid=%v", p.id(), sid)
 	}
 	cid, ok2 := s.chans[pid]
 	if !ok2 {
-		return unknown, fmt.Errorf("%v: ProtocolState could not find cid for sid=%v, pid=%v", p.id(), sid, pid)
+		return Unknown, fmt.Errorf("%v: ProtocolState could not find cid for sid=%v, pid=%v", p.id(), sid, pid)
 	}
 	c, ok3 := p.chans[cid]
 	if !ok3 {
-		return unknown, fmt.Errorf("%v: ProtocolState could not find chan for sid=%v, pid=%v, cid=%v", p.id(), sid, pid, cid)
+		return Unknown, fmt.Errorf("%v: ProtocolState could not find chan for sid=%v, pid=%v, cid=%v", p.id(), sid, pid, cid)
 	}
 	return c.state, nil
 }

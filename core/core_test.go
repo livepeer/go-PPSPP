@@ -55,14 +55,14 @@ func startNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, d
 
 	time.Sleep(3 * time.Second)
 
-	checkState(t, sid, p, remote, ready)
+	checkState(t, sid, p, remote, Ready)
 
 	done <- true
 }
 
 func waitNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, done chan bool) {
 	time.Sleep(3 * time.Second)
-	checkState(t, sid, p, remote, ready)
+	checkState(t, sid, p, remote, Ready)
 
 	done <- true
 }
@@ -112,7 +112,7 @@ func checkNoChannel(t *testing.T, sid SwarmID, p *Peer, remote peer.ID) {
 	// We should write a function with receiver (p *Peer) that actually checks if the channel exists
 	// in the Peer object, but the ProtocolState function essentially does that already.
 	foundState, err := p.ProtocolState(sid, remote)
-	if !(foundState == unknown && err != nil) {
+	if !(foundState == Unknown && err != nil) {
 		t.Errorf("%v found a channel for sid=%v, remote=%v", p.id(), sid, remote)
 	}
 }
