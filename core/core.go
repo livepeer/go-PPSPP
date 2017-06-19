@@ -26,7 +26,7 @@ import (
 	json "github.com/multiformats/go-multicodec/json"
 )
 
-const proto = "/goppspp/1.0.0"
+const proto = "/goppspp/0.0.1"
 
 // MsgError is an error that happens while handling an incoming message
 type MsgError struct {
