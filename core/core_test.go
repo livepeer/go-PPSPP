@@ -1,17 +1,20 @@
 package core
 
 import (
-	"log"
+	"flag"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/golang/glog"
 	peer "github.com/libp2p/go-libp2p-peer"
 	ps "github.com/libp2p/go-libp2p-peerstore"
 )
 
 // TestNetworkHandshake tests a handshake between two peers on two different ports
 func TestNetworkHandshake(t *testing.T) {
+	flag.Lookup("logtostderr").Value.Set("true")
+
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
 	rand.Seed(666)
@@ -21,7 +24,7 @@ func TestNetworkHandshake(t *testing.T) {
 	p2 := NewPeer(port2)
 	peerExchangeIDAddr(p1, p2)
 	sid := SwarmID(8)
-	log.Printf("Handshake between %s and %s on swarm %v\n", p1.id(), p2.id(), sid)
+	glog.Infof("Handshake between %s and %s on swarm %v\n", p1.id(), p2.id(), sid)
 	p1.AddSwarm(sid)
 	p2.AddSwarm(sid)
 

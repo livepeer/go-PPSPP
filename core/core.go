@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 
 	json0 "encoding/json"
@@ -14,6 +13,7 @@ import (
 
 	"bytes"
 
+	"github.com/golang/glog"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	host "github.com/libp2p/go-libp2p-host"
 	inet "github.com/libp2p/go-libp2p-net"
@@ -194,17 +194,17 @@ func (p *Peer) id() peer.ID {
 }
 
 func (p *Peer) setupStreamHandler() {
-	log.Println("setting stream handler")
+	glog.Info("setting stream handler")
 	p.h.SetStreamHandler(proto, func(s inet.Stream) {
 
 		remote := s.Conn().RemotePeer()
-		log.Printf("%s received a stream from %s", p.h.ID(), remote)
+		glog.Infof("%s received a stream from %s", p.h.ID(), remote)
 		defer s.Close()
 		ws := WrapStream(s)
 		err := p.HandleStream(ws)
-		log.Println("handled stream")
+		glog.Info("handled stream")
 		if err != nil {
-			log.Fatal(err)
+			glog.Fatal(err)
 		}
 	})
 }
@@ -212,9 +212,9 @@ func (p *Peer) setupStreamHandler() {
 // HandleStream handles an incoming stream
 // TODO: not sure how this works wrt multiple incoming datagrams
 func (p *Peer) HandleStream(ws *WrappedStream) error {
-	log.Printf("%v handling stream", p.id())
+	glog.Infof("%v handling stream", p.id())
 	d, err := p.receiveDatagram(ws)
-	log.Printf("%v recvd Datagram", p.id())
+	glog.Infof("%v recvd Datagram", p.id())
 	if err != nil {
 		return err
 	}
@@ -223,13 +223,13 @@ func (p *Peer) HandleStream(ws *WrappedStream) error {
 
 // receiveDatagram reads and decodes a datagram from the stream
 func (p *Peer) receiveDatagram(ws *WrappedStream) (*Datagram, error) {
-	log.Printf("%v receiveDatagram", p.id())
+	glog.Infof("%v receiveDatagram", p.id())
 	if ws == nil {
 		return nil, fmt.Errorf("%v receiveDatagram on nil *WrappedStream", p.h.ID())
 	}
 	var d Datagram
 	err := ws.dec.Decode(&d)
-	log.Printf("decoded datagram %v\n", d)
+	glog.Infof("decoded datagram %v\n", d)
 	if err != nil {
 		return nil, err
 	}
@@ -250,14 +250,14 @@ func (p *Peer) sendDatagram(d Datagram, c ChanID) error {
 
 	ws := WrapStream(s)
 
-	log.Printf("%v sending datagram %v\n", p.id(), d)
+	glog.Infof("%v sending datagram %v\n", p.id(), d)
 	err2 := ws.enc.Encode(d)
 	if err2 != nil {
 		return fmt.Errorf("send datagram encode error %v", err2)
 	}
 	// Because output is buffered with bufio, we need to flush!
 	err3 := ws.w.Flush()
-	log.Printf("%v flushed datagram", p.id())
+	glog.Infof("%v flushed datagram", p.id())
 	if err3 != nil {
 		return fmt.Errorf("send datagram flush error: %v", err3)
 	}
@@ -265,7 +265,7 @@ func (p *Peer) sendDatagram(d Datagram, c ChanID) error {
 }
 
 func (p *Peer) handleDatagram(d *Datagram, ws *WrappedStream) error {
-	log.Printf("%v handling datagram %v\n", p.id(), d)
+	glog.Infof("%v handling datagram %v\n", p.id(), d)
 	if len(d.Msgs) == 0 {
 		return errors.New("no messages in datagram")
 	}
@@ -293,7 +293,7 @@ func (p *Peer) handleMsg(c ChanID, m Msg, remote peer.ID) error {
 }
 
 func (p *Peer) closeChannel(c ChanID) error {
-	log.Println("closing channel")
+	glog.Info("closing channel")
 	delete(p.chans, c)
 	return nil
 }
@@ -318,7 +318,7 @@ func (p *Peer) ProtocolState(sid SwarmID, pid peer.ID) (ProtocolState, error) {
 
 // addChan adds a channel at the key ours
 func (p *Peer) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolState, remote peer.ID) error {
-	log.Printf("addChan ours=%v, sid=%v, theirs=%v, state=%v, remote=%v", ours, sid, theirs, state, remote)
+	glog.Infof("addChan ours=%v, sid=%v, theirs=%v, state=%v, remote=%v", ours, sid, theirs, state, remote)
 
 	if ours < 1 {
 		return errors.New("cannot setup channel with ours<1")
@@ -328,7 +328,7 @@ func (p *Peer) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolSt
 	p.chans[ours] = &Chan{sw: sid, theirs: theirs, state: state, remote: remote}
 
 	// add the channel to the swarm-level map
-	log.Printf("%v adding channel %v to swarm %v for %v", p.id(), ours, sid, remote)
+	glog.Infof("%v adding channel %v to swarm %v for %v", p.id(), ours, sid, remote)
 	sw, ok := p.swarms[sid]
 	if !ok {
 		return fmt.Errorf("no swarm exists at sid=%v", sid)
@@ -460,7 +460,7 @@ func (p *Peer) randomUnusedChanID() ChanID {
 
 // Connect creates a stream from p to the peer at id and sets a stream handler
 // func (p *Peer) Connect(id peer.ID) (*WrappedStream, error) {
-// 	log.Printf("%s: Connecting to %s", p.h.ID(), id)
+// 	glog.Infof("%s: Connecting to %s", p.h.ID(), id)
 // 	stream, err := p.h.NewStream(context.Background(), id, proto)
 // 	if err != nil {
 // 		return nil, err
