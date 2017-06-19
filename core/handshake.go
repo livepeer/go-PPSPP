@@ -19,7 +19,7 @@ func (p *Peer) startHandshake(remote peer.ID, sid SwarmID) error {
 
 func (p *Peer) handleHandshake(cid ChanID, m Msg, remote peer.ID) error {
 	log.Printf("%v handling handshake", p.id())
-	h, ok := m.Data.(Handshake)
+	h, ok := m.Data.(HandshakeMsg)
 	if !ok {
 		return MsgError{c: cid, m: m, info: "could not convert to HANDSHAKE"}
 	}
@@ -81,8 +81,8 @@ func (p *Peer) sendClosingHandshake(remote peer.ID, sid SwarmID) error {
 
 	log.Printf("%v sending closing handshake on sid=%v c=%v to %v", p.id(), sid, c, remote)
 	// handshake with c=0 will signal a close handshake
-	h := Handshake{C: 0}
-	m := Msg{Op: handshake, Data: h}
+	h := HandshakeMsg{C: 0}
+	m := Msg{Op: Handshake, Data: h}
 	d := Datagram{ChanID: p.chans[c].theirs, Msgs: []Msg{m}}
 	log.Printf("%v sending datagram for closing handshake", p.id())
 	err := p.sendDatagram(d, c)
@@ -93,8 +93,8 @@ func (p *Peer) sendClosingHandshake(remote peer.ID, sid SwarmID) error {
 }
 
 func (p *Peer) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
-	h := Handshake{C: ours, S: sid}
-	m := Msg{Op: handshake, Data: h}
+	h := HandshakeMsg{C: ours, S: sid}
+	m := Msg{Op: Handshake, Data: h}
 	d := Datagram{ChanID: theirs, Msgs: []Msg{m}}
 	return p.sendDatagram(d, ours)
 }

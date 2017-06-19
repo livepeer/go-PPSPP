@@ -70,14 +70,14 @@ type Opcode uint8
 //   | 255      | Reserved         |
 //   +----------+------------------+
 const (
-	handshake Opcode = 13 // weird number so it's easier to notice in debug info
+	Handshake Opcode = 13 // weird number so it's easier to notice in debug info
 )
 
 // MsgData holds the data payload of a message
 type MsgData interface{}
 
 // Handshake holds a handshake message data payload
-type Handshake struct {
+type HandshakeMsg struct {
 	C ChanID
 	S SwarmID
 	// TODO: swarm SwarmMetadata
@@ -278,7 +278,7 @@ func (p *Peer) handleDatagram(d *Datagram, ws *WrappedStream) error {
 
 func (p *Peer) handleMsg(c ChanID, m Msg, remote peer.ID) error {
 	switch m.Op {
-	case handshake:
+	case Handshake:
 		return p.handleHandshake(c, m, remote)
 	default:
 		return MsgError{m: m, info: "bad opcode"}
@@ -381,8 +381,8 @@ func (m *Msg) UnmarshalJSON(b []byte) error {
 	// decode the gob in aux.Data and put it in m.Data
 	dec := gob.NewDecoder(bytes.NewBuffer(aux.Data))
 	switch aux.Op {
-	case handshake:
-		var h Handshake
+	case Handshake:
+		var h HandshakeMsg
 		err := dec.Decode(&h)
 		if err != nil {
 			return errors.New("failed to decode handshake")
@@ -403,9 +403,9 @@ func (m Msg) MarshalJSON() ([]byte, error) {
 	var b bytes.Buffer
 	enc := gob.NewEncoder(&b)
 	switch m.Data.(type) {
-	case Handshake:
-		gob.Register(Handshake{})
-		err := enc.Encode(m.Data.(Handshake))
+	case HandshakeMsg:
+		gob.Register(HandshakeMsg{})
+		err := enc.Encode(m.Data.(HandshakeMsg))
 		if err != nil {
 			return nil, fmt.Errorf("Failed to marshal Handshake: %v", err)
 		}
