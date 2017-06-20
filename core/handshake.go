@@ -10,7 +10,7 @@ import (
 func (p *Peer) startHandshake(remote peer.ID, sid SwarmID) error {
 	glog.Infof("%v starting handshake", p.id())
 
-	ours := p.chooseOurID()
+	ours := p.chooseOutChan()
 	// their channel is 0 until they reply with a handshake
 	p.addChan(ours, sid, 0, Begin, remote)
 	p.chans[ours].state = WaitHandshake
@@ -30,7 +30,7 @@ func (p *Peer) handleHandshake(cid ChanID, m Msg, remote peer.ID) error {
 			return MsgError{c: cid, m: m, info: "handshake cannot request channel ID 0"}
 		}
 		// need to create a new channel
-		newCID := p.chooseOurID()
+		newCID := p.chooseOutChan()
 		p.addChan(newCID, h.S, h.C, Ready, remote)
 		glog.Infof("%v moving to ready state", p.id())
 		p.sendReplyHandshake(newCID, h.C, h.S)
@@ -99,7 +99,7 @@ func (p *Peer) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
 	return p.sendDatagram(d, ours)
 }
 
-func (p *Peer) chooseOurID() ChanID {
+func (p *Peer) chooseOutChan() ChanID {
 	// FIXME: see Issue #10
 	return p.randomUnusedChanID()
 }
