@@ -10,7 +10,7 @@ import (
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	host "github.com/libp2p/go-libp2p-host"
 	inet "github.com/libp2p/go-libp2p-net"
-	peer "github.com/libp2p/go-libp2p-peer"
+	libp2ppeer "github.com/libp2p/go-libp2p-peer"
 	ps "github.com/libp2p/go-libp2p-peerstore"
 	libp2pswarm "github.com/libp2p/go-libp2p-swarm"
 	bhost "github.com/libp2p/go-libp2p/p2p/host/basic"
@@ -120,13 +120,13 @@ type Chan struct {
 	theirs ChanID         // remote id to attach to outgoing datagrams on this channel
 	state  ProtocolState  // current state of the protocol on this channel
 	stream *WrappedStream // stream to use for sending and receiving datagrams on this channel
-	remote peer.ID        // peer.ID of the remote peer
+	remote libp2ppeer.ID  // libp2ppeer.ID of the remote peer
 }
 
 type swarm struct {
 	// chans is a peer ID -> channel ID map for this swarm
 	// it does not include this peer, because this peer does not have a local channel ID
-	chans map[peer.ID]ChanID
+	chans map[libp2ppeer.ID]ChanID
 	// TODO: other swarm metadata stored here
 }
 
@@ -142,11 +142,11 @@ type Peer struct {
 	swarms map[SwarmID]*swarm
 
 	// all of this peer's streams, indexed by a global? peer.ID
-	streams map[peer.ID]*WrappedStream
+	streams map[libp2ppeer.ID]*WrappedStream
 }
 
 func newSwarm() *swarm {
-	chans := make(map[peer.ID]ChanID)
+	chans := make(map[libp2ppeer.ID]ChanID)
 	return &swarm{chans: chans}
 }
 
@@ -167,7 +167,7 @@ func NewPeer(port int) *Peer {
 	chans[0].state = Begin
 
 	// initially, no streams
-	streams := make(map[peer.ID](*WrappedStream))
+	streams := make(map[libp2ppeer.ID](*WrappedStream))
 
 	// Create a basic host to implement the libp2p Host interface
 	h := NewBasicHost(port)
@@ -180,7 +180,7 @@ func NewPeer(port int) *Peer {
 	return &p
 }
 
-func (p *Peer) id() peer.ID {
+func (p *Peer) id() libp2ppeer.ID {
 	return p.h.ID()
 }
 
@@ -274,7 +274,7 @@ func (p *Peer) handleDatagram(d *Datagram, ws *WrappedStream) error {
 	return nil
 }
 
-func (p *Peer) handleMsg(c ChanID, m Msg, remote peer.ID) error {
+func (p *Peer) handleMsg(c ChanID, m Msg, remote libp2ppeer.ID) error {
 	switch m.Op {
 	case Handshake:
 		return p.handleHandshake(c, m, remote)
@@ -291,7 +291,7 @@ func (p *Peer) closeChannel(c ChanID) error {
 
 // ProtocolState returns the current ProtocolState in a swarm for a given remote peer
 // if this returns unknown state, check error for reason
-func (p *Peer) ProtocolState(sid SwarmID, pid peer.ID) (ProtocolState, error) {
+func (p *Peer) ProtocolState(sid SwarmID, pid libp2ppeer.ID) (ProtocolState, error) {
 	s, ok1 := p.swarms[sid]
 	if !ok1 {
 		return Unknown, fmt.Errorf("%v: ProtocolState could not find swarm at sid=%v", p.id(), sid)
@@ -308,7 +308,7 @@ func (p *Peer) ProtocolState(sid SwarmID, pid peer.ID) (ProtocolState, error) {
 }
 
 // addChan adds a channel at the key ours
-func (p *Peer) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolState, remote peer.ID) error {
+func (p *Peer) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolState, remote libp2ppeer.ID) error {
 	glog.Infof("addChan ours=%v, sid=%v, theirs=%v, state=%v, remote=%v", ours, sid, theirs, state, remote)
 
 	if ours < 1 {
@@ -334,7 +334,7 @@ func NewBasicHost(port int) host.Host {
 	// Ignoring most errors for brevity
 	// See echo example for more details and better implementation
 	priv, pub, _ := crypto.GenerateKeyPair(crypto.RSA, 2048)
-	pid, _ := peer.IDFromPublicKey(pub)
+	pid, _ := libp2ppeer.IDFromPublicKey(pub)
 	listen, _ := ma.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port))
 	ps := ps.NewPeerstore()
 	ps.AddPrivKey(pid, priv)
@@ -363,7 +363,7 @@ func (p *Peer) randomUnusedChanID() ChanID {
 // closed on the receive. Not yet sure exactly what to do here, but I think we can put this off for now.
 
 // Connect creates a stream from p to the peer at id and sets a stream handler
-// func (p *Peer) Connect(id peer.ID) (*WrappedStream, error) {
+// func (p *Peer) Connect(id libp2ppeer.ID) (*WrappedStream, error) {
 // 	glog.Infof("%s: Connecting to %s", p.h.ID(), id)
 // 	stream, err := p.h.NewStream(context.Background(), id, proto)
 // 	if err != nil {
@@ -378,7 +378,7 @@ func (p *Peer) randomUnusedChanID() ChanID {
 // }
 
 // Disconnect closes the stream that p is using to connect to the peer at id
-// func (p *Peer) Disconnect(id peer.ID) error {
+// func (p *Peer) Disconnect(id libp2ppeer.ID) error {
 // 	ws, ok := p.streams[id]
 // 	if ok {
 // 		ws.stream.Close()

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	peer "github.com/libp2p/go-libp2p-peer"
+	libp2ppeer "github.com/libp2p/go-libp2p-peer"
 	ps "github.com/libp2p/go-libp2p-peerstore"
 )
 
@@ -47,7 +47,7 @@ func TestNetworkHandshake(t *testing.T) {
 	<-done4
 }
 
-func startNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, done chan bool) {
+func startNetworkHandshake(t *testing.T, p *Peer, remote libp2ppeer.ID, sid SwarmID, done chan bool) {
 	p.AddSwarm(sid)
 
 	// kick off the handshake
@@ -63,14 +63,14 @@ func startNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, d
 	done <- true
 }
 
-func waitNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, done chan bool) {
+func waitNetworkHandshake(t *testing.T, p *Peer, remote libp2ppeer.ID, sid SwarmID, done chan bool) {
 	time.Sleep(3 * time.Second)
 	checkState(t, sid, p, remote, Ready)
 
 	done <- true
 }
 
-func closeNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, done chan bool) {
+func closeNetworkHandshake(t *testing.T, p *Peer, remote libp2ppeer.ID, sid SwarmID, done chan bool) {
 	err := p.sendClosingHandshake(remote, sid)
 	if err != nil {
 		t.Error(err)
@@ -82,7 +82,7 @@ func closeNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, d
 	done <- true
 }
 
-func waitCloseNetworkHandshake(t *testing.T, p *Peer, remote peer.ID, sid SwarmID, done chan bool) {
+func waitCloseNetworkHandshake(t *testing.T, p *Peer, remote libp2ppeer.ID, sid SwarmID, done chan bool) {
 	time.Sleep(3 * time.Second)
 
 	checkNoChannel(t, sid, p, remote)
@@ -99,7 +99,7 @@ func peerExchangeIDAddr(p1 *Peer, p2 *Peer) {
 }
 
 // checkState checks that the peer's ProtocolState is equal to state for swarm sid for the remote peer
-func checkState(t *testing.T, sid SwarmID, p *Peer, remote peer.ID, state ProtocolState) {
+func checkState(t *testing.T, sid SwarmID, p *Peer, remote libp2ppeer.ID, state ProtocolState) {
 	foundState, err := p.ProtocolState(sid, remote)
 	if err != nil {
 		t.Errorf("could not get state for %v: %v", p.id(), err)
@@ -110,7 +110,7 @@ func checkState(t *testing.T, sid SwarmID, p *Peer, remote peer.ID, state Protoc
 }
 
 // checkNoChannel checks that peer p does not have a channel for swarm sid for the remote peer
-func checkNoChannel(t *testing.T, sid SwarmID, p *Peer, remote peer.ID) {
+func checkNoChannel(t *testing.T, sid SwarmID, p *Peer, remote libp2ppeer.ID) {
 	// This is a bit of a hacky round-about way to check that there is not channel
 	// We should write a function with receiver (p *Peer) that actually checks if the channel exists
 	// in the Peer object, but the ProtocolState function essentially does that already.
