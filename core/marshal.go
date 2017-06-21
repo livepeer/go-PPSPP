@@ -41,7 +41,7 @@ func (m *Msg) UnmarshalJSON(b []byte) error {
 // MarshalJSON handles the serializing of a message.
 //
 // See note above UnmarshalJSON for the reason for the custom MarshalJSON
-func (m Msg) MarshalJSON() ([]byte, error) {
+func (m *Msg) MarshalJSON() ([]byte, error) {
 	// Encode m.Data into a gob
 	var b bytes.Buffer
 	enc := gob.NewEncoder(&b)
