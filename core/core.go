@@ -145,6 +145,11 @@ type Peer struct {
 	streams map[libp2ppeer.ID]*WrappedStream
 }
 
+// Host returns the host interface in the peer
+func (p *Peer) Host() host.Host {
+	return p.h
+}
+
 func newSwarm() *swarm {
 	chans := make(map[libp2ppeer.ID]ChanID)
 	return &swarm{chans: chans}
@@ -180,7 +185,8 @@ func NewPeer(port int) *Peer {
 	return &p
 }
 
-func (p *Peer) id() libp2ppeer.ID {
+// ID returns the peer ID
+func (p *Peer) ID() libp2ppeer.ID {
 	return p.h.ID()
 }
 
@@ -203,9 +209,9 @@ func (p *Peer) setupStreamHandler() {
 // HandleStream handles an incoming stream
 // TODO: not sure how this works wrt multiple incoming datagrams
 func (p *Peer) HandleStream(ws *WrappedStream) error {
-	glog.Infof("%v handling stream", p.id())
+	glog.Infof("%v handling stream", p.ID())
 	d, err := p.receiveDatagram(ws)
-	glog.Infof("%v recvd Datagram", p.id())
+	glog.Infof("%v recvd Datagram", p.ID())
 	if err != nil {
 		return err
 	}
@@ -214,7 +220,7 @@ func (p *Peer) HandleStream(ws *WrappedStream) error {
 
 // receiveDatagram reads and decodes a datagram from the stream
 func (p *Peer) receiveDatagram(ws *WrappedStream) (*Datagram, error) {
-	glog.Infof("%v receiveDatagram", p.id())
+	glog.Infof("%v receiveDatagram", p.ID())
 	if ws == nil {
 		return nil, fmt.Errorf("%v receiveDatagram on nil *WrappedStream", p.h.ID())
 	}
@@ -241,14 +247,14 @@ func (p *Peer) sendDatagram(d Datagram, c ChanID) error {
 
 	ws := WrapStream(s)
 
-	glog.Infof("%v sending datagram %v\n", p.id(), d)
+	glog.Infof("%v sending datagram %v\n", p.ID(), d)
 	err2 := ws.enc.Encode(d)
 	if err2 != nil {
 		return fmt.Errorf("send datagram encode error %v", err2)
 	}
 	// Because output is buffered with bufio, we need to flush!
 	err3 := ws.w.Flush()
-	glog.Infof("%v flushed datagram", p.id())
+	glog.Infof("%v flushed datagram", p.ID())
 	if err3 != nil {
 		return fmt.Errorf("send datagram flush error: %v", err3)
 	}
@@ -256,7 +262,7 @@ func (p *Peer) sendDatagram(d Datagram, c ChanID) error {
 }
 
 func (p *Peer) handleDatagram(d *Datagram, ws *WrappedStream) error {
-	glog.Infof("%v handling datagram %v\n", p.id(), d)
+	glog.Infof("%v handling datagram %v\n", p.ID(), d)
 	if len(d.Msgs) == 0 {
 		return errors.New("no messages in datagram")
 	}
@@ -294,15 +300,15 @@ func (p *Peer) closeChannel(c ChanID) error {
 func (p *Peer) ProtocolState(sid SwarmID, pid libp2ppeer.ID) (ProtocolState, error) {
 	s, ok1 := p.swarms[sid]
 	if !ok1 {
-		return Unknown, fmt.Errorf("%v: ProtocolState could not find swarm at sid=%v", p.id(), sid)
+		return Unknown, fmt.Errorf("%v: ProtocolState could not find swarm at sid=%v", p.ID(), sid)
 	}
 	cid, ok2 := s.chans[pid]
 	if !ok2 {
-		return Unknown, fmt.Errorf("%v: ProtocolState could not find cid for sid=%v, pid=%v", p.id(), sid, pid)
+		return Unknown, fmt.Errorf("%v: ProtocolState could not find cid for sid=%v, pid=%v", p.ID(), sid, pid)
 	}
 	c, ok3 := p.chans[cid]
 	if !ok3 {
-		return Unknown, fmt.Errorf("%v: ProtocolState could not find chan for sid=%v, pid=%v, cid=%v", p.id(), sid, pid, cid)
+		return Unknown, fmt.Errorf("%v: ProtocolState could not find chan for sid=%v, pid=%v, cid=%v", p.ID(), sid, pid, cid)
 	}
 	return c.state, nil
 }
@@ -319,7 +325,7 @@ func (p *Peer) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolSt
 	p.chans[ours] = &Chan{sw: sid, theirs: theirs, state: state, remote: remote}
 
 	// add the channel to the swarm-level map
-	glog.Infof("%v adding channel %v to swarm %v for %v", p.id(), ours, sid, remote)
+	glog.Infof("%v adding channel %v to swarm %v for %v", p.ID(), ours, sid, remote)
 	sw, ok := p.swarms[sid]
 	if !ok {
 		return fmt.Errorf("no swarm exists at sid=%v", sid)
