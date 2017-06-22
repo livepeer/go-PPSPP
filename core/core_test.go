@@ -136,8 +136,8 @@ func TestNetworkDataExchange(t *testing.T) {
 
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
-	sid := core.SwarmID(8)
-	p1, p2 := setupTwoPeerSwarm(666, sid)
+	sid := core.SwarmID(7)
+	p1, p2 := setupTwoPeerSwarm(234, sid)
 	glog.Infof("Data exchange between %s and %s on swarm %v\n", p1.ID(), p2.ID(), sid)
 
 	// First phase: start handshake in one thread, wait in the other
@@ -161,7 +161,7 @@ func TestNetworkDataExchange(t *testing.T) {
 	if err2 != nil {
 		t.Errorf("content error: %v", err2)
 	}
-	glog.Info(content)
+	glog.Infof("content=%v", content)
 	t.Error("TODO: check that p1 has the right data")
 
 	// Second phase: close the handshake in one thread, wait in the other.

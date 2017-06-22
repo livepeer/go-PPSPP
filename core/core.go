@@ -74,6 +74,7 @@ func (id PeerID) String() string {
 const (
 	Handshake Opcode = 0
 	Have      Opcode = 3
+	Request   Opcode = 8
 )
 
 // MsgData holds the data payload of a message
@@ -195,11 +196,11 @@ func (p *Peer) setupStreamHandler() {
 	p.h.SetStreamHandler(proto, func(s inet.Stream) {
 
 		remote := s.Conn().RemotePeer()
-		glog.Infof("%s received a stream from %s", p.h.ID(), remote)
+		glog.Infof("%s received a stream from %s", p.ID(), remote)
 		defer s.Close()
 		ws := WrapStream(s)
 		err := p.HandleStream(ws)
-		glog.Info("handled stream")
+		glog.Infof("%v handled stream", p.ID())
 		if err != nil {
 			glog.Fatal(err)
 		}
@@ -226,7 +227,7 @@ func (p *Peer) receiveDatagram(ws *WrappedStream) (*Datagram, error) {
 	}
 	var d Datagram
 	err := ws.dec.Decode(&d)
-	glog.Infof("decoded datagram %v\n", d)
+	glog.Infof("%v decoded datagram %v", p.ID(), d)
 	if err != nil {
 		return nil, err
 	}
@@ -240,9 +241,9 @@ func (p *Peer) sendDatagram(d Datagram, c ChanID) error {
 		return errors.New("could not find channel")
 	}
 	remote := p.chans[c].remote
-	s, err := p.h.NewStream(context.Background(), libp2ppeer.ID(remote), proto)
-	if err != nil {
-		return fmt.Errorf("sendDatagram: (chan %v) NewStream to %v: %v", c, remote, err)
+	s, err1 := p.h.NewStream(context.Background(), libp2ppeer.ID(remote), proto)
+	if err1 != nil {
+		return fmt.Errorf("sendDatagram: (chan %v) NewStream to %v: %v", c, remote, err1)
 	}
 
 	ws := WrapStream(s)
@@ -286,6 +287,8 @@ func (p *Peer) handleMsg(c ChanID, m Msg, remote PeerID) error {
 		return p.handleHandshake(c, m, remote)
 	case Have:
 		return p.handleHave(c, m, remote)
+	case Request:
+		return p.handleRequest(c, m, remote)
 	default:
 		return MsgError{m: m, info: "bad opcode"}
 	}

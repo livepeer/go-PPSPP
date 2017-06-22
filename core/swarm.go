@@ -60,3 +60,9 @@ func (s *Swarm) LocalContent(id ChunkID) (*bytes.Buffer, error) {
 	}
 	return nil, fmt.Errorf("LocalContent TODO")
 }
+
+func (s *Swarm) WantChunk(id ChunkID) bool {
+	// Simple implementation for now... if it's not in localChunks, we want it.
+	_, ok := s.localChunks[id]
+	return !ok
+}
