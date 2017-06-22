@@ -4,10 +4,9 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
-	libp2ppeer "github.com/libp2p/go-libp2p-peer"
 )
 
-func (p *Peer) StartHandshake(remote libp2ppeer.ID, sid SwarmID) error {
+func (p *Peer) StartHandshake(remote PeerID, sid SwarmID) error {
 	glog.Infof("%v starting handshake", p.ID())
 
 	ours := p.chooseOutChan()
@@ -17,7 +16,7 @@ func (p *Peer) StartHandshake(remote libp2ppeer.ID, sid SwarmID) error {
 	return p.sendReqHandshake(ours, sid)
 }
 
-func (p *Peer) handleHandshake(cid ChanID, m Msg, remote libp2ppeer.ID) error {
+func (p *Peer) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 	glog.Infof("%v handling handshake", p.ID())
 	h, ok := m.Data.(HandshakeMsg)
 	if !ok {
@@ -75,8 +74,8 @@ func (p *Peer) sendReplyHandshake(ours ChanID, theirs ChanID, sid SwarmID) error
 	return p.sendHandshake(ours, theirs, sid)
 }
 
-func (p *Peer) SendClosingHandshake(remote libp2ppeer.ID, sid SwarmID) error {
-	// get chanID from libp2ppeer.ID and SwarmID
+func (p *Peer) SendClosingHandshake(remote PeerID, sid SwarmID) error {
+	// get chanID from PeerID and SwarmID
 	c := p.swarms[sid].chans[remote]
 
 	glog.Infof("%v sending closing handshake on sid=%v c=%v to %v", p.ID(), sid, c, remote)

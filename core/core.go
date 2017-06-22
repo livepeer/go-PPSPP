@@ -36,8 +36,19 @@ type ChanID uint32
 // SwarmID identifies a swarm
 type SwarmID uint32
 
+func (id SwarmID) String() string {
+	return fmt.Sprintf("<SwarmID %d>", id)
+}
+
 // Opcode identifies the type of message
 type Opcode uint8
+
+// PeerID identifies a peer
+type PeerID libp2ppeer.ID
+
+func (id PeerID) String() string {
+	return libp2ppeer.ID(id).String()
+}
 
 // From the RFC:
 //   +----------+------------------+
@@ -120,14 +131,7 @@ type Chan struct {
 	theirs ChanID         // remote id to attach to outgoing datagrams on this channel
 	state  ProtocolState  // current state of the protocol on this channel
 	stream *WrappedStream // stream to use for sending and receiving datagrams on this channel
-	remote libp2ppeer.ID  // libp2ppeer.ID of the remote peer
-}
-
-type swarm struct {
-	// chans is a peer ID -> channel ID map for this swarm
-	// it does not include this peer, because this peer does not have a local channel ID
-	chans map[libp2ppeer.ID]ChanID
-	// TODO: other swarm metadata stored here
+	remote PeerID         // PeerID of the remote peer
 }
 
 // Peer is currently just a couple of things related to a peer (as defined in the RFC)
@@ -139,10 +143,10 @@ type Peer struct {
 	chans map[ChanID]*Chan
 
 	// all of this peer's swarms, indexed by a global? SwarmID
-	swarms map[SwarmID]*swarm
+	swarms map[SwarmID]*Swarm
 
 	// all of this peer's streams, indexed by a global? peer.ID
-	streams map[libp2ppeer.ID]*WrappedStream
+	streams map[PeerID]*WrappedStream
 }
 
 // Host returns the host interface in the peer
@@ -150,21 +154,26 @@ func (p *Peer) Host() host.Host {
 	return p.h
 }
 
-func newSwarm() *swarm {
-	chans := make(map[libp2ppeer.ID]ChanID)
-	return &swarm{chans: chans}
-}
-
 // AddSwarm adds a swarm with a given ID
 func (p *Peer) AddSwarm(id SwarmID) {
-	p.swarms[id] = newSwarm()
+	p.swarms[id] = NewSwarm()
+}
+
+// Swarm returns the swarm at the given id
+func (p *Peer) Swarm(id SwarmID) (*Swarm, error) {
+	s, ok := p.swarms[id]
+	if ok {
+		return s, nil
+	} else {
+		return nil, fmt.Errorf("could not find swarm at id=%v", id)
+	}
 }
 
 // NewPeer makes and initializes a new peer
 func NewPeer(port int) *Peer {
 
 	// initially, there are no locally known swarms
-	swarms := make(map[SwarmID](*swarm))
+	swarms := make(map[SwarmID](*Swarm))
 
 	chans := make(map[ChanID](*Chan))
 	// Special channel 0 is the reserved channel for incoming starting handshakes
@@ -172,7 +181,7 @@ func NewPeer(port int) *Peer {
 	chans[0].state = Begin
 
 	// initially, no streams
-	streams := make(map[libp2ppeer.ID](*WrappedStream))
+	streams := make(map[PeerID](*WrappedStream))
 
 	// Create a basic host to implement the libp2p Host interface
 	h := NewBasicHost(port)
@@ -186,8 +195,8 @@ func NewPeer(port int) *Peer {
 }
 
 // ID returns the peer ID
-func (p *Peer) ID() libp2ppeer.ID {
-	return p.h.ID()
+func (p *Peer) ID() PeerID {
+	return PeerID(p.h.ID())
 }
 
 func (p *Peer) setupStreamHandler() {
@@ -240,7 +249,7 @@ func (p *Peer) sendDatagram(d Datagram, c ChanID) error {
 		return errors.New("could not find channel")
 	}
 	remote := p.chans[c].remote
-	s, err := p.h.NewStream(context.Background(), remote, proto)
+	s, err := p.h.NewStream(context.Background(), libp2ppeer.ID(remote), proto)
 	if err != nil {
 		return fmt.Errorf("sendDatagram: (chan %v) NewStream to %v: %v", c, remote, err)
 	}
@@ -272,7 +281,7 @@ func (p *Peer) handleDatagram(d *Datagram, ws *WrappedStream) error {
 		if !ok {
 			return errors.New("channel not found")
 		}
-		err := p.handleMsg(cid, msg, ws.stream.Conn().RemotePeer())
+		err := p.handleMsg(cid, msg, PeerID(ws.stream.Conn().RemotePeer()))
 		if err != nil {
 			return err
 		}
@@ -280,7 +289,7 @@ func (p *Peer) handleDatagram(d *Datagram, ws *WrappedStream) error {
 	return nil
 }
 
-func (p *Peer) handleMsg(c ChanID, m Msg, remote libp2ppeer.ID) error {
+func (p *Peer) handleMsg(c ChanID, m Msg, remote PeerID) error {
 	switch m.Op {
 	case Handshake:
 		return p.handleHandshake(c, m, remote)
@@ -297,7 +306,7 @@ func (p *Peer) closeChannel(c ChanID) error {
 
 // ProtocolState returns the current ProtocolState in a swarm for a given remote peer
 // if this returns unknown state, check error for reason
-func (p *Peer) ProtocolState(sid SwarmID, pid libp2ppeer.ID) (ProtocolState, error) {
+func (p *Peer) ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error) {
 	s, ok1 := p.swarms[sid]
 	if !ok1 {
 		return Unknown, fmt.Errorf("%v: ProtocolState could not find swarm at sid=%v", p.ID(), sid)
@@ -314,7 +323,7 @@ func (p *Peer) ProtocolState(sid SwarmID, pid libp2ppeer.ID) (ProtocolState, err
 }
 
 // addChan adds a channel at the key ours
-func (p *Peer) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolState, remote libp2ppeer.ID) error {
+func (p *Peer) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolState, remote PeerID) error {
 	glog.Infof("addChan ours=%v, sid=%v, theirs=%v, state=%v, remote=%v", ours, sid, theirs, state, remote)
 
 	if ours < 1 {
@@ -369,7 +378,7 @@ func (p *Peer) randomUnusedChanID() ChanID {
 // closed on the receive. Not yet sure exactly what to do here, but I think we can put this off for now.
 
 // Connect creates a stream from p to the peer at id and sets a stream handler
-// func (p *Peer) Connect(id libp2ppeer.ID) (*WrappedStream, error) {
+// func (p *Peer) Connect(id PeerID) (*WrappedStream, error) {
 // 	glog.Infof("%s: Connecting to %s", p.h.ID(), id)
 // 	stream, err := p.h.NewStream(context.Background(), id, proto)
 // 	if err != nil {
@@ -384,7 +393,7 @@ func (p *Peer) randomUnusedChanID() ChanID {
 // }
 
 // Disconnect closes the stream that p is using to connect to the peer at id
-// func (p *Peer) Disconnect(id libp2ppeer.ID) error {
+// func (p *Peer) Disconnect(id PeerID) error {
 // 	ws, ok := p.streams[id]
 // 	if ok {
 // 		ws.stream.Close()
