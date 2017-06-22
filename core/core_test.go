@@ -21,7 +21,7 @@ func TestNetworkHandshake(t *testing.T) {
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
 	sid := core.SwarmID(8)
-	p1, p2 := setupTwoPeerSwarm(666, sid)
+	p1, p2 := setupTwoPeerSwarm(t, 666, sid)
 	glog.Infof("Handshake between %s and %s on swarm %v\n", p1.ID(), p2.ID(), sid)
 
 	// First phase: start handshake in one thread, wait in the other
@@ -41,9 +41,12 @@ func TestNetworkHandshake(t *testing.T) {
 	go closeNetworkHandshake(t, p2, p1.ID(), sid, done4)
 	<-done3
 	<-done4
+
+	p1.Disconnect(p2.ID())
+	p2.Disconnect(p1.ID())
 }
 
-func setupTwoPeerSwarm(seed int64, sid core.SwarmID) (*core.Peer, *core.Peer) {
+func setupTwoPeerSwarm(t *testing.T, seed int64, sid core.SwarmID) (*core.Peer, *core.Peer) {
 	rand.Seed(seed)
 	port1 := rand.Intn(100) + 10000
 	port2 := port1 + 1
@@ -52,6 +55,14 @@ func setupTwoPeerSwarm(seed int64, sid core.SwarmID) (*core.Peer, *core.Peer) {
 	peerExchangeIDAddr(p1, p2)
 	p1.AddSwarm(sid)
 	p2.AddSwarm(sid)
+	_, err1 := p1.Connect(p2.ID())
+	if err1 != nil {
+		t.Fatalf("%v could not connect to %v", p1.ID(), p2.ID())
+	}
+	_, err2 := p2.Connect(p1.ID())
+	if err2 != nil {
+		t.Fatalf("%v could not connect to %v", p2.ID(), p1.ID())
+	}
 	return p1, p2
 }
 
@@ -137,7 +148,7 @@ func TestNetworkDataExchange(t *testing.T) {
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
 	sid := core.SwarmID(7)
-	p1, p2 := setupTwoPeerSwarm(234, sid)
+	p1, p2 := setupTwoPeerSwarm(t, 234, sid)
 	glog.Infof("Data exchange between %s and %s on swarm %v\n", p1.ID(), p2.ID(), sid)
 
 	// First phase: start handshake in one thread, wait in the other
@@ -172,22 +183,25 @@ func TestNetworkDataExchange(t *testing.T) {
 	go closeNetworkHandshake(t, p2, p1.ID(), sid, done4)
 	<-done3
 	<-done4
+
+	p1.Disconnect(p2.ID())
+	p2.Disconnect(p1.ID())
 }
 
 func sendHaves(t *testing.T, ref map[core.ChunkID]string, s core.SwarmID, p *core.Peer, remote core.PeerID) {
-	swarm, err := p.Swarm(s)
-	if err != nil {
-		t.Fatalf("sendHaves could not find swarm %v: %v", s, err)
+	swarm, err1 := p.Swarm(s)
+	if err1 != nil {
+		t.Fatalf("sendHaves could not find swarm %v: %v", s, err1)
 	}
 	for i, data := range ref {
 		c := core.Chunk{ID: i, B: bytes.NewBufferString(data)}
 		swarm.AddLocalChunk(i, &c)
 	}
-	for i, _ := range swarm.LocalChunks() {
-		err := p.SendHave(i, remote, s)
-		if err != nil {
-			t.Fatalf("sendHaves error: %v", err)
-		}
+	start := core.ChunkID(0)
+	end := core.ChunkID(len(ref) - 1)
+	err2 := p.SendHave(start, end, remote, s)
+	if err2 != nil {
+		t.Fatalf("sendHaves error: %v", err2)
 	}
 }
 

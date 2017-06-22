@@ -3,12 +3,13 @@ package core
 import "github.com/golang/glog"
 import "fmt"
 
-// HaveMsg holds a have message data payload
+// RequestMsg holds a have message data payload
 type RequestMsg struct {
+	// TODO: start chunk / end chunk
 	C ChunkID
 }
 
-// TODO: SendBatchHaves - like SendHave but batches multiple haves into a single datagram
+// TODO: SendBatchRequests - like SendRequest but batches multiple requests into a single datagram
 
 func (p *Peer) SendRequest(id ChunkID, remote PeerID, sid SwarmID) error {
 	glog.Infof("%v SendReq Chunk %v, to %v, on %v", p.ID(), id, remote, sid)

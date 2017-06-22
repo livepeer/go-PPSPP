@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 
 	"github.com/golang/glog"
@@ -73,6 +74,7 @@ func (id PeerID) String() string {
 //   +----------+------------------+
 const (
 	Handshake Opcode = 0
+	Data      Opcode = 1
 	Have      Opcode = 3
 	Request   Opcode = 8
 )
@@ -201,7 +203,10 @@ func (p *Peer) setupStreamHandler() {
 		ws := WrapStream(s)
 		err := p.HandleStream(ws)
 		glog.Infof("%v handled stream", p.ID())
-		if err != nil {
+		if err == io.EOF {
+			glog.Infof("%v received EOF", p.ID())
+			return
+		} else if err != nil {
 			glog.Fatal(err)
 		}
 	})
@@ -211,12 +216,17 @@ func (p *Peer) setupStreamHandler() {
 // TODO: not sure how this works wrt multiple incoming datagrams
 func (p *Peer) HandleStream(ws *WrappedStream) error {
 	glog.Infof("%v handling stream", p.ID())
-	d, err := p.receiveDatagram(ws)
-	glog.Infof("%v recvd Datagram", p.ID())
-	if err != nil {
-		return err
+	for {
+		d, err := p.receiveDatagram(ws)
+		glog.Infof("%v recvd Datagram", p.ID())
+		if err != nil {
+			return err
+		}
+		err2 := p.handleDatagram(d, ws)
+		if err2 != nil {
+			return err2
+		}
 	}
-	return p.handleDatagram(d, ws)
 }
 
 // receiveDatagram reads and decodes a datagram from the stream
@@ -241,12 +251,15 @@ func (p *Peer) sendDatagram(d Datagram, c ChanID) error {
 		return errors.New("could not find channel")
 	}
 	remote := p.chans[c].remote
-	s, err1 := p.h.NewStream(context.Background(), libp2ppeer.ID(remote), proto)
-	if err1 != nil {
-		return fmt.Errorf("sendDatagram: (chan %v) NewStream to %v: %v", c, remote, err1)
+	// s, err1 := p.h.NewStream(context.Background(), libp2ppeer.ID(remote), proto)
+	// if err1 != nil {
+	// 	return fmt.Errorf("sendDatagram: (chan %v) NewStream to %v: %v", c, remote, err1)
+	// }
+	// ws := WrapStream(s)
+	ws, ok2 := p.streams[remote]
+	if !ok2 {
+		return fmt.Errorf("%v sendDatagram could not find stream for %v", p.ID(), remote)
 	}
-
-	ws := WrapStream(s)
 
 	glog.Infof("%v sending datagram %v\n", p.ID(), d)
 	err2 := ws.enc.Encode(d)
@@ -374,26 +387,27 @@ func (p *Peer) randomUnusedChanID() ChanID {
 // closed on the receive. Not yet sure exactly what to do here, but I think we can put this off for now.
 
 // Connect creates a stream from p to the peer at id and sets a stream handler
-// func (p *Peer) Connect(id PeerID) (*WrappedStream, error) {
-// 	glog.Infof("%s: Connecting to %s", p.h.ID(), id)
-// 	stream, err := p.h.NewStream(context.Background(), id, proto)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func (p *Peer) Connect(id PeerID) (*WrappedStream, error) {
+	glog.Infof("%s: Connecting to %s", p.ID(), id)
+	stream, err := p.h.NewStream(context.Background(), libp2ppeer.ID(id), proto)
+	if err != nil {
+		return nil, err
+	}
 
-// 	ws := WrapStream(stream)
+	ws := WrapStream(stream)
 
-// 	p.streams[id] = ws
+	p.streams[id] = ws
 
-// 	return ws, nil
-// }
+	return ws, nil
+}
 
 // Disconnect closes the stream that p is using to connect to the peer at id
-// func (p *Peer) Disconnect(id PeerID) error {
-// 	ws, ok := p.streams[id]
-// 	if ok {
-// 		ws.stream.Close()
-// 		return nil
-// 	}
-// 	return errors.New("disconnect error, no stream to close")
-// }
+func (p *Peer) Disconnect(id PeerID) error {
+	glog.Infof("%s: Disconnecting from %s", p.ID(), id)
+	ws, ok := p.streams[id]
+	if ok {
+		ws.stream.Close()
+		return nil
+	}
+	return errors.New("disconnect error, no stream to close")
+}
