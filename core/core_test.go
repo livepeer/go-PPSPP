@@ -153,8 +153,15 @@ func TestNetworkDataExchange(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	t.Error("TODO: p1 automatically sends requests for chunks it needs")
-	t.Error("TODO: p2 automatically replies with data")
+	swarm, err1 := p1.Swarm(sid)
+	if err1 != nil {
+		t.Fatal(err1)
+	}
+	content, err2 := swarm.LocalContent(0)
+	if err2 != nil {
+		t.Errorf("content error: %v", err2)
+	}
+	glog.Info(content)
 	t.Error("TODO: check that p1 has the right data")
 
 	// Second phase: close the handshake in one thread, wait in the other.
@@ -180,3 +187,5 @@ func sendHaves(t *testing.T, ref map[core.ChunkID]string, s core.SwarmID, p *cor
 		p.SendHave(i, remote, s)
 	}
 }
+
+// func sendRequests(t *testing.T, numChunks int, s core.SwarmID, p *core.Peer, remote core.PeerID)

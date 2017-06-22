@@ -1,7 +1,10 @@
 package core
 
 import (
+	"bytes"
 	"container/list"
+
+	"fmt"
 
 	"github.com/golang/glog"
 )
@@ -47,4 +50,13 @@ func (s *Swarm) AddLocalChunk(cid ChunkID, c *Chunk) {
 
 func (s *Swarm) LocalChunks() map[ChunkID]*Chunk {
 	return s.localChunks
+}
+
+// LocalContent returns a buffer with all contiguous chunks available starting at id
+func (s *Swarm) LocalContent(id ChunkID) (*bytes.Buffer, error) {
+	_, ok := s.localChunks[id]
+	if !ok {
+		return nil, fmt.Errorf("LocalContent could not find %v", id)
+	}
+	return nil, fmt.Errorf("LocalContent TODO")
 }
