@@ -31,6 +31,13 @@ func (m *Msg) UnmarshalJSON(b []byte) error {
 			return errors.New("failed to decode handshake")
 		}
 		m.Data = h
+	case Have:
+		var h HaveMsg
+		err := dec.Decode(&h)
+		if err != nil {
+			return errors.New("failed to decode have")
+		}
+		m.Data = h
 	default:
 		return errors.New("failed to decode message data")
 	}
@@ -51,6 +58,12 @@ func (m *Msg) MarshalJSON() ([]byte, error) {
 		err := enc.Encode(m.Data.(HandshakeMsg))
 		if err != nil {
 			return nil, fmt.Errorf("Failed to marshal Handshake: %v", err)
+		}
+	case HaveMsg:
+		gob.Register(HaveMsg{})
+		err := enc.Encode(m.Data.(HaveMsg))
+		if err != nil {
+			return nil, fmt.Errorf("Failed to marshal Have: %v", err)
 		}
 	default:
 		return nil, errors.New("failed to marshal message data")

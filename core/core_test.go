@@ -184,7 +184,10 @@ func sendHaves(t *testing.T, ref map[core.ChunkID]string, s core.SwarmID, p *cor
 		swarm.AddLocalChunk(i, &c)
 	}
 	for i, _ := range swarm.LocalChunks() {
-		p.SendHave(i, remote, s)
+		err := p.SendHave(i, remote, s)
+		if err != nil {
+			t.Fatalf("sendHaves error: %v", err)
+		}
 	}
 }
 

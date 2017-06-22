@@ -72,19 +72,12 @@ func (id PeerID) String() string {
 //   | 255      | Reserved         |
 //   +----------+------------------+
 const (
-	Handshake Opcode = 13 // weird number so it's easier to notice in debug info
+	Handshake Opcode = 0
+	Have      Opcode = 3
 )
 
 // MsgData holds the data payload of a message
 type MsgData interface{}
-
-// Handshake holds a handshake message data payload
-type HandshakeMsg struct {
-	C ChanID
-	S SwarmID
-	// TODO: swarm SwarmMetadata
-	// TODO: peer capabilities
-}
 
 // Msg holds a protocol message
 type Msg struct {
@@ -125,8 +118,6 @@ const (
 
 // Chan holds the current state of a channel
 type Chan struct {
-	//ours   ChanID // receiving channel id (unique)
-	//theirs ChanID // sending channel id
 	sw     SwarmID        // the swarm that this channel is communicating for
 	theirs ChanID         // remote id to attach to outgoing datagrams on this channel
 	state  ProtocolState  // current state of the protocol on this channel
@@ -293,6 +284,8 @@ func (p *Peer) handleMsg(c ChanID, m Msg, remote PeerID) error {
 	switch m.Op {
 	case Handshake:
 		return p.handleHandshake(c, m, remote)
+	case Have:
+		return p.handleHave(c, m, remote)
 	default:
 		return MsgError{m: m, info: "bad opcode"}
 	}

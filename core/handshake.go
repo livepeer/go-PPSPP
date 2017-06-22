@@ -6,6 +6,14 @@ import (
 	"github.com/golang/glog"
 )
 
+// HandshakeMsg holds a handshake message data payload
+type HandshakeMsg struct {
+	C ChanID
+	S SwarmID
+	// TODO: swarm SwarmMetadata
+	// TODO: peer capabilities
+}
+
 func (p *Peer) StartHandshake(remote PeerID, sid SwarmID) error {
 	glog.Infof("%v starting handshake", p.ID())
 
@@ -20,7 +28,7 @@ func (p *Peer) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 	glog.Infof("%v handling handshake", p.ID())
 	h, ok := m.Data.(HandshakeMsg)
 	if !ok {
-		return MsgError{c: cid, m: m, info: "could not convert to HANDSHAKE"}
+		return MsgError{c: cid, m: m, info: "could not convert to Handshake"}
 	}
 
 	// cid==0 means this is an incoming starting handshake
