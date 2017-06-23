@@ -6,13 +6,14 @@ import "fmt"
 // RequestMsg holds a have message data payload
 type RequestMsg struct {
 	// TODO: start chunk / end chunk
-	C ChunkID
+	Start ChunkID
+	End   ChunkID
 }
 
 // TODO: SendBatchRequests - like SendRequest but batches multiple requests into a single datagram
 
-func (p *Peer) SendRequest(id ChunkID, remote PeerID, sid SwarmID) error {
-	glog.Infof("%v SendReq Chunk %v, to %v, on %v", p.ID(), id, remote, sid)
+func (p *Peer) SendRequest(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
+	glog.Infof("%v SendReq Chunk %v-%v, to %v, on %v", p.ID(), start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]
 	if !ok1 {
 		return fmt.Errorf("SendRequest could not find %v", sid)
@@ -25,7 +26,7 @@ func (p *Peer) SendRequest(id ChunkID, remote PeerID, sid SwarmID) error {
 	if !ok3 {
 		return fmt.Errorf("SendRequest could not find channel %v", ours)
 	}
-	h := RequestMsg{C: id}
+	h := RequestMsg{Start: start, End: end}
 	m := Msg{Op: Request, Data: h}
 	d := Datagram{ChanID: c.theirs, Msgs: []Msg{m}}
 	return p.sendDatagram(d, ours)
@@ -46,6 +47,6 @@ func (p *Peer) handleRequest(cid ChanID, m Msg, remote PeerID) error {
 	if !ok3 {
 		return MsgError{c: cid, m: m, info: "could not convert to RequestMsg"}
 	}
-	glog.Infof("%v requested chunk %v on %v", remote, h.C, sid)
+	glog.Infof("%v requested chunk %v-%v on %v", remote, h.Start, h.End, sid)
 	return nil
 }

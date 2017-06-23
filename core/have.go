@@ -47,10 +47,37 @@ func (p *Peer) handleHave(cid ChanID, m Msg, remote PeerID) error {
 	if !ok3 {
 		return MsgError{c: cid, m: m, info: "could not convert to Have"}
 	}
-	for i := h.Start; i <= h.End; i++ {
+
+	return p.requestWantedChunksInRange(h.Start, h.End, remote, sid, s)
+}
+
+func (p *Peer) requestWantedChunksInRange(start ChunkID, end ChunkID, remote PeerID, sid SwarmID, s *Swarm) error {
+	var startRegion ChunkID
+	var endRegion ChunkID
+	wantedRegion := false
+	for i := start; i <= end; i++ {
 		s.AddRemoteHave(i, remote)
 		if s.WantChunk(i) {
-			return p.SendRequest(i, remote, sid)
+			endRegion = i
+			if !wantedRegion {
+				wantedRegion = true
+				startRegion = i
+			}
+		} else {
+			if wantedRegion {
+				wantedRegion = false
+				err := p.SendRequest(startRegion, endRegion, remote, sid)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	// If we left the for loop in a wantedRegion, send the request for it
+	if wantedRegion {
+		err := p.SendRequest(startRegion, endRegion, remote, sid)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
