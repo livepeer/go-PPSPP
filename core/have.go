@@ -12,6 +12,7 @@ type HaveMsg struct {
 
 // TODO: SendBatchHaves - like SendHave but batches multiple haves into a single datagram
 
+// SendHave sends a have message for the chunk range to the remote peer on the Swarm
 func (p *Peer) SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
 	glog.Infof("%v SendHave Chunks %d-%d, to %v, on %v", p.ID(), start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]

@@ -10,6 +10,7 @@ type DataMsg struct {
 	Data  []byte
 }
 
+// SendData sends the chunk range in a data message
 func (p *Peer) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
 	glog.Infof("%v SendData Chunks %d-%d, to %v, on %v", p.ID(), start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]

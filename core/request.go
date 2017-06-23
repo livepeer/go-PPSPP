@@ -12,6 +12,7 @@ type RequestMsg struct {
 
 // TODO: SendBatchRequests - like SendRequest but batches multiple requests into a single datagram
 
+// SendRequest sends a request for the chunk range to the remote peer on the swarm
 func (p *Peer) SendRequest(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
 	glog.Infof("%v SendReq Chunk %v-%v, to %v, on %v", p.ID(), start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]

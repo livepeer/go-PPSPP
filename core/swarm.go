@@ -45,7 +45,7 @@ func NewSwarm(metadata SwarmMetadata) *Swarm {
 	return &Swarm{chans: chans, localChunks: localChunks, remoteHaves: remoteHaves, metadata: metadata}
 }
 
-//
+// AddRemoteHave tells this Swarm that the remote peer p has ChunkID c
 func (s *Swarm) AddRemoteHave(c ChunkID, p PeerID) {
 	_, ok := s.remoteHaves[c]
 	if !ok {
@@ -54,6 +54,7 @@ func (s *Swarm) AddRemoteHave(c ChunkID, p PeerID) {
 	s.remoteHaves[c].PushFront(p)
 }
 
+// AddLocalChunk stores the chunk locally
 func (s *Swarm) AddLocalChunk(cid ChunkID, c *Chunk) {
 	_, ok := s.localChunks[cid]
 	if ok {
@@ -62,6 +63,7 @@ func (s *Swarm) AddLocalChunk(cid ChunkID, c *Chunk) {
 	s.localChunks[cid] = c
 }
 
+// AddLocalChunks stores a contiguous chunk range, with input data batched in one array
 func (s *Swarm) AddLocalChunks(start ChunkID, end ChunkID, data []byte) error {
 	chunkSize := s.metadata.ChunkSize
 	for i := start; i <= end; i++ {
@@ -77,25 +79,19 @@ func (s *Swarm) AddLocalChunks(start ChunkID, end ChunkID, data []byte) error {
 	return nil
 }
 
+// LocalChunks returns the local chunks store for this Swarm
 func (s *Swarm) LocalChunks() map[ChunkID]*Chunk {
 	return s.localChunks
 }
 
-// // LocalContent returns a buffer with all contiguous chunks available starting at id
-// func (s *Swarm) LocalContent(id ChunkID) (*bytes.Buffer, error) {
-// 	_, ok := s.localChunks[id]
-// 	if !ok {
-// 		return nil, fmt.Errorf("LocalContent could not find %v", id)
-// 	}
-// 	return nil, fmt.Errorf("LocalContent TODO")
-// }
-
+// WantChunk returns whether this Swarm wants the chunk locally
 func (s *Swarm) WantChunk(id ChunkID) bool {
 	// Simple implementation for now... if it's not in localChunks, we want it.
 	_, ok := s.localChunks[id]
 	return !ok
 }
 
+// DataFromLocalChunks returns packs the data from the chunk range into a single array
 func (s *Swarm) DataFromLocalChunks(start ChunkID, end ChunkID) ([]byte, error) {
 	chunkSize := s.metadata.ChunkSize
 	n := int(end) - int(start) + 1
@@ -111,17 +107,14 @@ func (s *Swarm) DataFromLocalChunks(start ChunkID, end ChunkID) ([]byte, error) 
 		bstart := (int(i) - int(start)) * chunkSize
 		bend := bstart + chunkSize
 		bn := copy(b[bstart:bend], c.B)
-		// bn, err := c.B.Read(b[bstart:bend])
 		if bn != chunkSize {
 			return b, fmt.Errorf("DataFromLocalChunks bad read from local chunk %d (read %d bytes, chunksize=%d", i, bn, chunkSize)
 		}
-		// if err != nil {
-		// 	return b, err
-		// }
 	}
 	return b, nil
 }
 
+// ChunkSize returns the chunk size for this Swarm
 func (s *Swarm) ChunkSize() int {
 	return s.metadata.ChunkSize
 }

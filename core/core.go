@@ -158,9 +158,8 @@ func (p *Peer) Swarm(id SwarmID) (*Swarm, error) {
 	s, ok := p.swarms[id]
 	if ok {
 		return s, nil
-	} else {
-		return nil, fmt.Errorf("could not find swarm at id=%v", id)
 	}
+	return nil, fmt.Errorf("could not find swarm at id=%v", id)
 }
 
 // NewPeer makes and initializes a new peer
