@@ -39,14 +39,47 @@ func (p *Peer) handleRequest(cid ChanID, m Msg, remote PeerID) error {
 		return fmt.Errorf("handleRequest could not find chan %v", cid)
 	}
 	sid := c.sw
-	_, ok2 := p.swarms[sid]
+	swarm, ok2 := p.swarms[sid]
 	if !ok2 {
 		return fmt.Errorf("handleRequest could not find %v", sid)
 	}
-	h, ok3 := m.Data.(RequestMsg)
+	r, ok3 := m.Data.(RequestMsg)
 	if !ok3 {
 		return MsgError{c: cid, m: m, info: "could not convert to RequestMsg"}
 	}
-	glog.Infof("%v requested chunk %v-%v on %v", remote, h.Start, h.End, sid)
+	glog.Infof("%v requested chunk %v-%v on %v", remote, r.Start, r.End, sid)
+	return p.sendLocalChunksInRange(r.Start, r.End, remote, sid, swarm)
+}
+
+// Send any chunks in range that we have locally
+func (p *Peer) sendLocalChunksInRange(start ChunkID, end ChunkID, remote PeerID, sid SwarmID, s *Swarm) error {
+	var startRange ChunkID
+	var endRange ChunkID
+	haveRange := false
+	for i := start; i <= end; i++ {
+		_, ok := s.localChunks[i]
+		if ok {
+			endRange = i
+			if !haveRange {
+				haveRange = true
+				startRange = i
+			}
+		} else {
+			if haveRange {
+				haveRange = false
+				err := p.SendData(startRange, endRange, remote, sid)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	// If we left the for loop in a haveRange, send the request for it
+	if haveRange {
+		err := p.SendData(startRange, endRange, remote, sid)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }

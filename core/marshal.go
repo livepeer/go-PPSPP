@@ -28,21 +28,28 @@ func (m *Msg) UnmarshalJSON(b []byte) error {
 		var h HandshakeMsg
 		err := dec.Decode(&h)
 		if err != nil {
-			return errors.New("failed to decode handshake")
+			return errors.New("failed to decode HandshakeMsg")
 		}
 		m.Data = h
 	case Have:
 		var h HaveMsg
 		err := dec.Decode(&h)
 		if err != nil {
-			return errors.New("failed to decode have")
+			return errors.New("failed to decode HaveMsg")
 		}
 		m.Data = h
 	case Request:
 		var r RequestMsg
 		err := dec.Decode(&r)
 		if err != nil {
-			return errors.New("failed to decode request")
+			return errors.New("failed to decode RequestMsg")
+		}
+		m.Data = r
+	case Data:
+		var r DataMsg
+		err := dec.Decode(&r)
+		if err != nil {
+			return errors.New("failed to decode DataMsg")
 		}
 		m.Data = r
 	default:
@@ -64,19 +71,25 @@ func (m *Msg) MarshalJSON() ([]byte, error) {
 		gob.Register(HandshakeMsg{})
 		err := enc.Encode(m.Data.(HandshakeMsg))
 		if err != nil {
-			return nil, fmt.Errorf("Failed to marshal Handshake: %v", err)
+			return nil, fmt.Errorf("Failed to marshal HandshakeMsg: %v", err)
 		}
 	case HaveMsg:
 		gob.Register(HaveMsg{})
 		err := enc.Encode(m.Data.(HaveMsg))
 		if err != nil {
-			return nil, fmt.Errorf("Failed to marshal Have: %v", err)
+			return nil, fmt.Errorf("Failed to marshal HaveMsg: %v", err)
 		}
 	case RequestMsg:
 		gob.Register(RequestMsg{})
 		err := enc.Encode(m.Data.(RequestMsg))
 		if err != nil {
-			return nil, fmt.Errorf("Failed to marshal Request: %v", err)
+			return nil, fmt.Errorf("Failed to marshal RequestMsg: %v", err)
+		}
+	case DataMsg:
+		gob.Register(DataMsg{})
+		err := enc.Encode(m.Data.(DataMsg))
+		if err != nil {
+			return nil, fmt.Errorf("Failed to marshal DataMsg: %v", err)
 		}
 	default:
 		return nil, errors.New("failed to marshal message data")

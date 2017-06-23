@@ -302,6 +302,8 @@ func (p *Peer) handleMsg(c ChanID, m Msg, remote PeerID) error {
 		return p.handleHave(c, m, remote)
 	case Request:
 		return p.handleRequest(c, m, remote)
+	case Data:
+		return p.handleData(c, m, remote)
 	default:
 		return MsgError{m: m, info: "bad opcode"}
 	}

@@ -9,8 +9,6 @@ import (
 	"github.com/golang/glog"
 	ps "github.com/libp2p/go-libp2p-peerstore"
 
-	"bytes"
-
 	"github.com/livepeer/go-PPSPP/core"
 )
 
@@ -143,7 +141,8 @@ func checkNoChannel(t *testing.T, sid core.SwarmID, p *core.Peer, remote core.Pe
 func TestNetworkDataExchange(t *testing.T) {
 	flag.Lookup("logtostderr").Value.Set("true")
 
-	reference := map[core.ChunkID]string{0: "The", 1: "quick", 2: "brown", 3: "fox", 4: "jumps", 5: "over", 6: "the", 7: "lazy", 8: "dog"}
+	reference := map[core.ChunkID]string{0: "aaaaAAAAaaaaAAAA", 1: "bbbbBBBBbbbbBBBB",
+		2: "ccccCCCCccccCCCC", 3: "ddddDDDDddddDDDD", 4: "eeeeEEEEeeeeEEEE", 5: "ffffFFFFffffFFFF"}
 
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
@@ -168,12 +167,20 @@ func TestNetworkDataExchange(t *testing.T) {
 	if err1 != nil {
 		t.Fatal(err1)
 	}
-	content, err2 := swarm.LocalContent(0)
+	content, err2 := swarm.DataFromLocalChunks(0, core.ChunkID(len(reference)-1))
 	if err2 != nil {
 		t.Errorf("content error: %v", err2)
 	}
+	for i := 0; i < len(reference); i++ {
+		for j := 0; j < swarm.ChunkSize(); j++ {
+			bref := []byte(reference[core.ChunkID(i)])[j]
+			bcontent := content[(i*swarm.ChunkSize())+j]
+			if bref != bcontent {
+				t.Errorf("local content mismatch chunk %d byte %d, bref=0x%x, bcontent=0x%x", i, j, bref, bcontent)
+			}
+		}
+	}
 	glog.Infof("content=%v", content)
-	t.Error("TODO: check that p1 has the right data")
 
 	// Second phase: close the handshake in one thread, wait in the other.
 	// Each thread checks that the channel is gone before setting the done channel
@@ -194,7 +201,7 @@ func sendHaves(t *testing.T, ref map[core.ChunkID]string, s core.SwarmID, p *cor
 		t.Fatalf("sendHaves could not find swarm %v: %v", s, err1)
 	}
 	for i, data := range ref {
-		c := core.Chunk{ID: i, B: bytes.NewBufferString(data)}
+		c := core.Chunk{ID: i, B: []byte(data)}
 		swarm.AddLocalChunk(i, &c)
 	}
 	start := core.ChunkID(0)

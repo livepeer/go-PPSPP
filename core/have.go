@@ -52,30 +52,30 @@ func (p *Peer) handleHave(cid ChanID, m Msg, remote PeerID) error {
 }
 
 func (p *Peer) requestWantedChunksInRange(start ChunkID, end ChunkID, remote PeerID, sid SwarmID, s *Swarm) error {
-	var startRegion ChunkID
-	var endRegion ChunkID
-	wantedRegion := false
+	var startRange ChunkID
+	var endRange ChunkID
+	wantedRange := false
 	for i := start; i <= end; i++ {
 		s.AddRemoteHave(i, remote)
 		if s.WantChunk(i) {
-			endRegion = i
-			if !wantedRegion {
-				wantedRegion = true
-				startRegion = i
+			endRange = i
+			if !wantedRange {
+				wantedRange = true
+				startRange = i
 			}
 		} else {
-			if wantedRegion {
-				wantedRegion = false
-				err := p.SendRequest(startRegion, endRegion, remote, sid)
+			if wantedRange {
+				wantedRange = false
+				err := p.SendRequest(startRange, endRange, remote, sid)
 				if err != nil {
 					return err
 				}
 			}
 		}
 	}
-	// If we left the for loop in a wantedRegion, send the request for it
-	if wantedRegion {
-		err := p.SendRequest(startRegion, endRegion, remote, sid)
+	// If we left the for loop in a wantedRange, send the request for it
+	if wantedRange {
+		err := p.SendRequest(startRange, endRange, remote, sid)
 		if err != nil {
 			return err
 		}

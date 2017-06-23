@@ -1,9 +1,5 @@
 package core
 
-import (
-	"bytes"
-)
-
 // ChunkID identifies a chunk of content
 type ChunkID uint32
 
@@ -11,5 +7,12 @@ type ChunkID uint32
 type Chunk struct {
 	//io.Reader{}
 	ID ChunkID
-	B  *bytes.Buffer
+	B  []byte
+}
+
+func newChunk(id ChunkID, size int) *Chunk {
+	var c Chunk
+	c.B = make([]byte, size)
+	c.ID = id
+	return &c
 }
