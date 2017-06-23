@@ -18,15 +18,16 @@ func TestNetworkHandshake(t *testing.T) {
 
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
-	sid := core.SwarmID(8)
-	p1, p2 := setupTwoPeerSwarm(t, 666, sid)
+	swarmMetadata := core.SwarmMetadata{ID: core.SwarmID(8), ChunkSize: 8}
+	sid := swarmMetadata.ID
+	p1, p2 := setupTwoPeerSwarm(t, 666, swarmMetadata)
 	glog.Infof("Handshake between %s and %s on swarm %v\n", p1.ID(), p2.ID(), sid)
 
 	// First phase: start handshake in one thread, wait in the other
 	// Each thread checks that state is moved to ready before setting the done channel
 	done1 := make(chan bool, 1)
 	done2 := make(chan bool, 1)
-	go startNetworkHandshake(t, p1, p2.ID(), sid, done1)
+	go startNetworkHandshake(t, p1, p2.ID(), swarmMetadata, done1)
 	go waitNetworkHandshake(t, p2, p1.ID(), sid, done2)
 	<-done1
 	<-done2
@@ -44,15 +45,15 @@ func TestNetworkHandshake(t *testing.T) {
 	p2.Disconnect(p1.ID())
 }
 
-func setupTwoPeerSwarm(t *testing.T, seed int64, sid core.SwarmID) (*core.Peer, *core.Peer) {
+func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*core.Peer, *core.Peer) {
 	rand.Seed(seed)
 	port1 := rand.Intn(100) + 10000
 	port2 := port1 + 1
 	p1 := core.NewPeer(port1)
 	p2 := core.NewPeer(port2)
 	peerExchangeIDAddr(p1, p2)
-	p1.AddSwarm(sid)
-	p2.AddSwarm(sid)
+	p1.AddSwarm(metadata)
+	p2.AddSwarm(metadata)
 	_, err1 := p1.Connect(p2.ID())
 	if err1 != nil {
 		t.Fatalf("%v could not connect to %v", p1.ID(), p2.ID())
@@ -64,18 +65,18 @@ func setupTwoPeerSwarm(t *testing.T, seed int64, sid core.SwarmID) (*core.Peer, 
 	return p1, p2
 }
 
-func startNetworkHandshake(t *testing.T, p *core.Peer, remote core.PeerID, sid core.SwarmID, done chan bool) {
-	p.AddSwarm(sid)
+func startNetworkHandshake(t *testing.T, p *core.Peer, remote core.PeerID, swarmMetadata core.SwarmMetadata, done chan bool) {
+	p.AddSwarm(swarmMetadata)
 
 	// kick off the handshake
-	err := p.StartHandshake(remote, sid)
+	err := p.StartHandshake(remote, swarmMetadata.ID)
 	if err != nil {
 		t.Error(err)
 	}
 
 	time.Sleep(3 * time.Second)
 
-	checkState(t, sid, p, remote, core.Ready)
+	checkState(t, swarmMetadata.ID, p, remote, core.Ready)
 
 	done <- true
 }
@@ -137,7 +138,7 @@ func checkNoChannel(t *testing.T, sid core.SwarmID, p *core.Peer, remote core.Pe
 	}
 }
 
-// Test NetworkDataExchange tests data exhcnage between two peers over two different ports
+// Test NetworkDataExchange tests data exchange between two peers over two different ports
 func TestNetworkDataExchange(t *testing.T) {
 	flag.Lookup("logtostderr").Value.Set("true")
 
@@ -146,15 +147,16 @@ func TestNetworkDataExchange(t *testing.T) {
 
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
-	sid := core.SwarmID(7)
-	p1, p2 := setupTwoPeerSwarm(t, 234, sid)
+	swarmMetadata := core.SwarmMetadata{ID: core.SwarmID(7), ChunkSize: 8}
+	sid := swarmMetadata.ID
+	p1, p2 := setupTwoPeerSwarm(t, 234, swarmMetadata)
 	glog.Infof("Data exchange between %s and %s on swarm %v\n", p1.ID(), p2.ID(), sid)
 
 	// First phase: start handshake in one thread, wait in the other
 	// Each thread checks that state is moved to ready before setting the done channel
 	done1 := make(chan bool, 1)
 	done2 := make(chan bool, 1)
-	go startNetworkHandshake(t, p1, p2.ID(), sid, done1)
+	go startNetworkHandshake(t, p1, p2.ID(), swarmMetadata, done1)
 	go waitNetworkHandshake(t, p2, p1.ID(), sid, done2)
 	<-done1
 	<-done2
@@ -211,5 +213,3 @@ func sendHaves(t *testing.T, ref map[core.ChunkID]string, s core.SwarmID, p *cor
 		t.Fatalf("sendHaves error: %v", err2)
 	}
 }
-
-// func sendRequests(t *testing.T, numChunks int, s core.SwarmID, p *core.Peer, remote core.PeerID)

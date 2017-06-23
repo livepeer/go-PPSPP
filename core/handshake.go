@@ -14,6 +14,7 @@ type HandshakeMsg struct {
 	// TODO: peer capabilities
 }
 
+// StartHandshake sends a starting handshake message to the remote peer on swarm sid
 func (p *Peer) StartHandshake(remote PeerID, sid SwarmID) error {
 	glog.Infof("%v starting handshake", p.ID())
 
@@ -82,13 +83,14 @@ func (p *Peer) sendReplyHandshake(ours ChanID, theirs ChanID, sid SwarmID) error
 	return p.sendHandshake(ours, theirs, sid)
 }
 
+// SendClosingHandshake sends a closing handshake message to the remote peer on swarm sid
 func (p *Peer) SendClosingHandshake(remote PeerID, sid SwarmID) error {
 	// get chanID from PeerID and SwarmID
 	c := p.swarms[sid].chans[remote]
 
 	glog.Infof("%v sending closing handshake on sid=%v c=%v to %v", p.ID(), sid, c, remote)
 	// handshake with c=0 will signal a close handshake
-	h := HandshakeMsg{C: 0}
+	h := HandshakeMsg{C: 0, S: sid}
 	m := Msg{Op: Handshake, Data: h}
 	d := Datagram{ChanID: p.chans[c].theirs, Msgs: []Msg{m}}
 	glog.Infof("%v sending datagram for closing handshake", p.ID())

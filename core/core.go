@@ -149,8 +149,8 @@ func (p *Peer) Host() host.Host {
 }
 
 // AddSwarm adds a swarm with a given ID
-func (p *Peer) AddSwarm(id SwarmID) {
-	p.swarms[id] = NewSwarm()
+func (p *Peer) AddSwarm(metadata SwarmMetadata) {
+	p.swarms[metadata.ID] = NewSwarm(metadata)
 }
 
 // Swarm returns the swarm at the given id
