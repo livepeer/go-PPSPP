@@ -221,9 +221,8 @@ func (p *Peer) HandleStream(ws *WrappedStream) error {
 		if err != nil {
 			return err
 		}
-		err2 := p.handleDatagram(d, ws)
-		if err2 != nil {
-			return err2
+		if err = p.handleDatagram(d, ws); err != nil {
+			return err
 		}
 	}
 }
