@@ -249,11 +249,6 @@ func (p *Peer) sendDatagram(d Datagram, c ChanID) error {
 		return errors.New("could not find channel")
 	}
 	remote := p.chans[c].remote
-	// s, err1 := p.h.NewStream(context.Background(), libp2ppeer.ID(remote), proto)
-	// if err1 != nil {
-	// 	return fmt.Errorf("sendDatagram: (chan %v) NewStream to %v: %v", c, remote, err1)
-	// }
-	// ws := WrapStream(s)
 	ws, ok2 := p.streams[remote]
 	if !ok2 {
 		return fmt.Errorf("%v sendDatagram could not find stream for %v", p.ID(), remote)
