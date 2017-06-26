@@ -102,13 +102,13 @@ func (s *Swarm) DataFromLocalChunks(start ChunkID, end ChunkID) ([]byte, error) 
 	for i := start; i <= end; i++ {
 		c, ok := s.localChunks[i]
 		if !ok {
-			return b, fmt.Errorf("DataFromLocalChunks could not find local chunk %d", i)
+			return nil, fmt.Errorf("DataFromLocalChunks could not find local chunk %d", i)
 		}
 		bstart := (int(i) - int(start)) * chunkSize
 		bend := bstart + chunkSize
 		bn := copy(b[bstart:bend], c.B)
 		if bn != chunkSize {
-			return b, fmt.Errorf("DataFromLocalChunks bad read from local chunk %d (read %d bytes, chunksize=%d", i, bn, chunkSize)
+			return nil, fmt.Errorf("DataFromLocalChunks bad read from local chunk %d (read %d bytes, chunksize=%d", i, bn, chunkSize)
 		}
 	}
 	return b, nil
