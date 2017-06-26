@@ -51,5 +51,15 @@ func (p *Peer) handleData(cid ChanID, m Msg, remote PeerID) error {
 		return MsgError{c: cid, m: m, info: "could not convert to DataMsg"}
 	}
 	glog.Infof("%v recvd data %d-%d from %v on %v", p.ID(), d.Start, d.End, remote, sid)
-	return swarm.AddLocalChunks(d.Start, d.End, d.Data)
+	// TODO: skipping integrity check
+	if err := swarm.AddLocalChunks(d.Start, d.End, d.Data); err != nil {
+		return err
+	}
+	// Send haves to all peers in the swarm
+	for r := range swarm.chans {
+		if err := p.SendHave(d.Start, d.End, r, sid); err != nil {
+			return err
+		}
+	}
+	return nil
 }
