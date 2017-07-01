@@ -57,11 +57,11 @@ func newLibp2pNetwork(port int) *libp2pNetwork {
 }
 
 func (n *libp2pNetwork) ID() PeerID {
-	return PeerID(n.h.ID())
+	return n.h.ID()
 }
 
 func (n *libp2pNetwork) AddAddrs(remote PeerID, addrs []ma.Multiaddr) {
-	n.h.Peerstore().AddAddrs(libp2ppeer.ID(remote), addrs, ps.PermanentAddrTTL)
+	n.h.Peerstore().AddAddrs(remote.(libp2ppeer.ID), addrs, ps.PermanentAddrTTL)
 }
 
 func (n *libp2pNetwork) Addrs() []ma.Multiaddr {
@@ -116,7 +116,7 @@ func (n *libp2pNetwork) SendDatagram(d Datagram, id PeerID) error {
 
 // Connect creates a stream from p to the peer at id and sets a stream handler
 func (n *libp2pNetwork) Connect(id PeerID) error {
-	stream, err := n.h.NewStream(context.Background(), libp2ppeer.ID(id), proto)
+	stream, err := n.h.NewStream(context.Background(), id.(libp2ppeer.ID), proto)
 	if err != nil {
 		return err
 	}

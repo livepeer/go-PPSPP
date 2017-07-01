@@ -55,11 +55,11 @@ func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*
 	p2.P.AddSwarm(metadata)
 	err1 := p1.Connect(p2.ID())
 	if err1 != nil {
-		t.Fatalf("%v could not connect to %v", p1.ID(), p2.ID())
+		t.Fatalf("%v could not connect to %v: %v", p1.ID(), p2.ID(), err1)
 	}
 	err2 := p2.Connect(p1.ID())
 	if err2 != nil {
-		t.Fatalf("%v could not connect to %v", p2.ID(), p1.ID())
+		t.Fatalf("%v could not connect to %v: %v", p2.ID(), p1.ID(), err2)
 	}
 	return p1, p2
 }

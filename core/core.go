@@ -2,7 +2,6 @@ package core
 
 import (
 	"github.com/golang/glog"
-	libp2ppeer "github.com/libp2p/go-libp2p-peer"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -10,12 +9,8 @@ import (
 const proto = "/goppspp/0.0.1"
 
 // PeerID identifies a peer
-// FIXME: need to hide the libp2p details behind Network inferface
-type PeerID libp2ppeer.ID
-
-func (id PeerID) String() string {
-	// FIXME: need to hide the libp2p details behind Network inferface
-	return libp2ppeer.ID(id).String()
+type PeerID interface {
+	String() string
 }
 
 // ChanID identifies a channel
