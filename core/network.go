@@ -17,6 +17,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 )
 
+// Network handles interactions with the underlying network
 type Network interface {
 	SendDatagram(d Datagram, id PeerID) error
 	Connect(id PeerID) error
@@ -100,10 +101,6 @@ func (n *libp2pNetwork) SendDatagram(d Datagram, id PeerID) error {
 	return nil
 }
 
-// Connect/Disconnect functions ... for the optimization where we keep the streams open between datagrams
-// I tried this and ended up falling back to the simpler approach where the stream is opened on the send,
-// closed on the receive. Not yet sure exactly what to do here, but I think we can put this off for now.
-
 // Connect creates a stream from p to the peer at id and sets a stream handler
 func (n *libp2pNetwork) Connect(id PeerID) error {
 	stream, err := n.h.NewStream(context.Background(), libp2ppeer.ID(id), proto)
@@ -142,22 +139,6 @@ func newBasicHost(port int) host.Host {
 		[]ma.Multiaddr{listen}, pid, ps, nil)
 	return bhost.New(n)
 }
-
-// HandleStream handles an incoming stream
-// TODO: not sure how this works wrt multiple incoming datagrams
-// func (n *libp2pNetwork) handleStream(ws *WrappedStream, handleDatagram func(*Datagram, PeerID) error) error {
-// 	glog.Infof("%v handling stream", n.ID())
-// 	for {
-// 		d, err := n.receiveDatagram(ws)
-// 		glog.Infof("%v recvd Datagram", n.ID())
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if err = handleDatagram(d); err != nil {
-// 			return err
-// 		}
-// 	}
-// }
 
 // receiveDatagram reads and decodes a datagram from the stream
 func (n *libp2pNetwork) receiveDatagram(ws *WrappedStream) (*Datagram, error) {

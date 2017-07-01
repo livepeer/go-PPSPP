@@ -8,10 +8,10 @@ import (
 	"github.com/golang/glog"
 )
 
+// Protocol is the interface to the PPSPP logic
 type Protocol interface {
 	HandleDatagram(d *Datagram, id PeerID) error
 	SetDatagramSender(f func(Datagram, PeerID) error)
-
 	StartHandshake(remote PeerID, sid SwarmID) error
 	SendClosingHandshake(remote PeerID, sid SwarmID) error
 	ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error)

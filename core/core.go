@@ -29,7 +29,12 @@ type Datagram struct {
 
 // Peer implements protocol logic and underlying network
 type Peer struct {
+
+	// P handles protocol logic.
 	P Protocol
+
+	// n handles the underlying network.
+	// private because no one should touch this except P
 	n Network
 }
 
