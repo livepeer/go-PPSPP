@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	ps "github.com/libp2p/go-libp2p-peerstore"
 
 	"github.com/livepeer/go-PPSPP/core"
 )
@@ -52,13 +51,13 @@ func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*
 	p1 := core.NewPeer(port1)
 	p2 := core.NewPeer(port2)
 	peerExchangeIDAddr(p1, p2)
-	p1.AddSwarm(metadata)
-	p2.AddSwarm(metadata)
-	_, err1 := p1.Connect(p2.ID())
+	p1.P.AddSwarm(metadata)
+	p2.P.AddSwarm(metadata)
+	err1 := p1.Connect(p2.ID())
 	if err1 != nil {
 		t.Fatalf("%v could not connect to %v", p1.ID(), p2.ID())
 	}
-	_, err2 := p2.Connect(p1.ID())
+	err2 := p2.Connect(p1.ID())
 	if err2 != nil {
 		t.Fatalf("%v could not connect to %v", p2.ID(), p1.ID())
 	}
@@ -66,10 +65,10 @@ func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*
 }
 
 func startNetworkHandshake(t *testing.T, p *core.Peer, remote core.PeerID, swarmMetadata core.SwarmMetadata, done chan bool) {
-	p.AddSwarm(swarmMetadata)
+	p.P.AddSwarm(swarmMetadata)
 
 	// kick off the handshake
-	err := p.StartHandshake(remote, swarmMetadata.ID)
+	err := p.P.StartHandshake(remote, swarmMetadata.ID)
 	if err != nil {
 		t.Error(err)
 	}
@@ -89,7 +88,7 @@ func waitNetworkHandshake(t *testing.T, p *core.Peer, remote core.PeerID, sid co
 }
 
 func closeNetworkHandshake(t *testing.T, p *core.Peer, remote core.PeerID, sid core.SwarmID, done chan bool) {
-	err := p.SendClosingHandshake(remote, sid)
+	err := p.P.SendClosingHandshake(remote, sid)
 	if err != nil {
 		t.Error(err)
 	}
@@ -110,15 +109,15 @@ func waitCloseNetworkHandshake(t *testing.T, p *core.Peer, remote core.PeerID, s
 
 // magic exchange of peer IDs and addrs
 func peerExchangeIDAddr(p1 *core.Peer, p2 *core.Peer) {
-	h1 := p1.Host()
-	h2 := p2.Host()
-	h1.Peerstore().AddAddrs(h2.ID(), h2.Addrs(), ps.PermanentAddrTTL)
-	h2.Peerstore().AddAddrs(h1.ID(), h1.Addrs(), ps.PermanentAddrTTL)
+	addrs1 := p1.Addrs()
+	addrs2 := p2.Addrs()
+	p1.AddAddrs(p2.ID(), addrs2)
+	p2.AddAddrs(p1.ID(), addrs1)
 }
 
 // checkState checks that the peer's ProtocolState is equal to state for swarm sid for the remote peer
 func checkState(t *testing.T, sid core.SwarmID, p *core.Peer, remote core.PeerID, state core.ProtocolState) {
-	foundState, err := p.ProtocolState(sid, remote)
+	foundState, err := p.P.ProtocolState(sid, remote)
 	if err != nil {
 		t.Errorf("could not get state for %v: %v", p.ID(), err)
 	}
@@ -132,7 +131,7 @@ func checkNoChannel(t *testing.T, sid core.SwarmID, p *core.Peer, remote core.Pe
 	// This is a bit of a hacky round-about way to check that there is not channel
 	// We should write a function with receiver (p *Peer) that actually checks if the channel exists
 	// in the Peer object, but the ProtocolState function essentially does that already.
-	foundState, err := p.ProtocolState(sid, remote)
+	foundState, err := p.P.ProtocolState(sid, remote)
 	if !(foundState == core.Unknown && err != nil) {
 		t.Errorf("%v found a channel for sid=%v, remote=%v", p.ID(), sid, remote)
 	}
@@ -165,7 +164,7 @@ func TestNetworkDataExchange(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	swarm, err1 := p1.Swarm(sid)
+	swarm, err1 := p1.P.Swarm(sid)
 	if err1 != nil {
 		t.Fatal(err1)
 	}
@@ -198,7 +197,7 @@ func TestNetworkDataExchange(t *testing.T) {
 }
 
 func sendHaves(t *testing.T, ref map[core.ChunkID]string, s core.SwarmID, p *core.Peer, remote core.PeerID) {
-	swarm, err1 := p.Swarm(s)
+	swarm, err1 := p.P.Swarm(s)
 	if err1 != nil {
 		t.Fatalf("sendHaves could not find swarm %v: %v", s, err1)
 	}
@@ -208,7 +207,7 @@ func sendHaves(t *testing.T, ref map[core.ChunkID]string, s core.SwarmID, p *cor
 	}
 	start := core.ChunkID(0)
 	end := core.ChunkID(len(ref) - 1)
-	err2 := p.SendHave(start, end, remote, s)
+	err2 := p.P.SendHave(start, end, remote, s)
 	if err2 != nil {
 		t.Fatalf("sendHaves error: %v", err2)
 	}

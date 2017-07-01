@@ -15,8 +15,8 @@ type HandshakeMsg struct {
 }
 
 // StartHandshake sends a starting handshake message to the remote peer on swarm sid
-func (p *Peer) StartHandshake(remote PeerID, sid SwarmID) error {
-	glog.Infof("%v starting handshake", p.ID())
+func (p *ppspp) StartHandshake(remote PeerID, sid SwarmID) error {
+	glog.Infof("starting handshake with %v", remote)
 
 	ours := p.chooseOutChan()
 	// their channel is 0 until they reply with a handshake
@@ -25,8 +25,8 @@ func (p *Peer) StartHandshake(remote PeerID, sid SwarmID) error {
 	return p.sendReqHandshake(ours, sid)
 }
 
-func (p *Peer) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
-	glog.Infof("%v handling handshake", p.ID())
+func (p *ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
+	glog.Infof("handling handshake from %v", remote)
 	h, ok := m.Data.(HandshakeMsg)
 	if !ok {
 		return MsgError{c: cid, m: m, info: "could not convert to Handshake"}
@@ -40,7 +40,7 @@ func (p *Peer) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 		// need to create a new channel
 		newCID := p.chooseOutChan()
 		p.addChan(newCID, h.S, h.C, Ready, remote)
-		glog.Infof("%v moving to ready state", p.ID())
+		glog.Infof("moving to ready state")
 		p.sendReplyHandshake(newCID, h.C, h.S)
 	} else {
 		c := p.chans[cid]
@@ -55,7 +55,7 @@ func (p *Peer) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 				p.closeChannel(cid)
 			} else {
 				c.theirs = h.C
-				glog.Infof("%v moving to ready state", p.ID())
+				glog.Infof("moving to ready state")
 				c.state = Ready
 			}
 		case Ready:
@@ -73,27 +73,27 @@ func (p *Peer) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 	return nil
 }
 
-func (p *Peer) sendReqHandshake(ours ChanID, sid SwarmID) error {
-	glog.Infof("%v sending request handshake", p.ID())
+func (p *ppspp) sendReqHandshake(ours ChanID, sid SwarmID) error {
+	glog.Infof("sending request handshake")
 	return p.sendHandshake(ours, 0, sid)
 }
 
-func (p *Peer) sendReplyHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
-	glog.Infof("%v sending reply handshake", p.ID())
+func (p *ppspp) sendReplyHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
+	glog.Infof("sending reply handshake")
 	return p.sendHandshake(ours, theirs, sid)
 }
 
 // SendClosingHandshake sends a closing handshake message to the remote peer on swarm sid
-func (p *Peer) SendClosingHandshake(remote PeerID, sid SwarmID) error {
+func (p *ppspp) SendClosingHandshake(remote PeerID, sid SwarmID) error {
 	// get chanID from PeerID and SwarmID
 	c := p.swarms[sid].chans[remote]
 
-	glog.Infof("%v sending closing handshake on sid=%v c=%v to %v", p.ID(), sid, c, remote)
+	glog.Infof("sending closing handshake on sid=%v c=%v to %v", sid, c, remote)
 	// handshake with c=0 will signal a close handshake
 	h := HandshakeMsg{C: 0, S: sid}
 	m := Msg{Op: Handshake, Data: h}
 	d := Datagram{ChanID: p.chans[c].theirs, Msgs: []Msg{m}}
-	glog.Infof("%v sending datagram for closing handshake", p.ID())
+	glog.Infof("sending datagram for closing handshake")
 	err := p.sendDatagram(d, c)
 	if err != nil {
 		return fmt.Errorf("sendClosingHandshake: %v", err)
@@ -101,14 +101,14 @@ func (p *Peer) SendClosingHandshake(remote PeerID, sid SwarmID) error {
 	return p.closeChannel(c)
 }
 
-func (p *Peer) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
+func (p *ppspp) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
 	h := HandshakeMsg{C: ours, S: sid}
 	m := Msg{Op: Handshake, Data: h}
 	d := Datagram{ChanID: theirs, Msgs: []Msg{m}}
 	return p.sendDatagram(d, ours)
 }
 
-func (p *Peer) chooseOutChan() ChanID {
+func (p *ppspp) chooseOutChan() ChanID {
 	// FIXME: see Issue #10
 	return p.randomUnusedChanID()
 }

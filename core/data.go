@@ -11,8 +11,8 @@ type DataMsg struct {
 }
 
 // SendData sends the chunk range in a data message
-func (p *Peer) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
-	glog.Infof("%v SendData Chunks %d-%d, to %v, on %v", p.ID(), start, end, remote, sid)
+func (p *ppspp) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
+	glog.Infof("SendData Chunks %d-%d, to %v, on %v", start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]
 	if !ok1 {
 		return fmt.Errorf("SendData could not find %v", sid)
@@ -35,8 +35,8 @@ func (p *Peer) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) 
 	return p.sendDatagram(d, ours)
 }
 
-func (p *Peer) handleData(cid ChanID, m Msg, remote PeerID) error {
-	glog.Infof("%v handleData from %v", p.ID(), remote)
+func (p *ppspp) handleData(cid ChanID, m Msg, remote PeerID) error {
+	glog.Infof("handleData from %v", remote)
 	c, ok1 := p.chans[cid]
 	if !ok1 {
 		return fmt.Errorf("handleData could not find chan %v", cid)
@@ -50,7 +50,7 @@ func (p *Peer) handleData(cid ChanID, m Msg, remote PeerID) error {
 	if !ok3 {
 		return MsgError{c: cid, m: m, info: "could not convert to DataMsg"}
 	}
-	glog.Infof("%v recvd data %d-%d from %v on %v", p.ID(), d.Start, d.End, remote, sid)
+	glog.Infof("recvd data %d-%d from %v on %v", d.Start, d.End, remote, sid)
 	// TODO: skipping integrity check
 	if err := swarm.AddLocalChunks(d.Start, d.End, d.Data); err != nil {
 		return err
