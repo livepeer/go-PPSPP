@@ -167,3 +167,44 @@ func (n *libp2pNetwork) receiveDatagram(ws *WrappedStream) (*Datagram, error) {
 	}
 	return &d, nil
 }
+
+// StubNetwork stores all sent datagrams without sending them anywhere
+type StubNetwork struct {
+	id            StringPeerID
+	SentDatagrams []*Datagram
+}
+
+func NewStubNetwork(s string) *StubNetwork {
+	return &StubNetwork{id: StringPeerID{s}}
+}
+
+func (n *StubNetwork) SendDatagram(d Datagram, remote PeerID) error {
+	n.SentDatagrams = append(n.SentDatagrams, &d)
+	return nil
+}
+
+func (n *StubNetwork) Connect(remote PeerID) error {
+	return nil
+
+}
+
+func (n *StubNetwork) Disconnect(remote PeerID) error {
+	return nil
+
+}
+
+func (n *StubNetwork) ID() PeerID {
+	return n.id
+}
+
+func (n *StubNetwork) SetDatagramHandler(f func(*Datagram, PeerID) error) {
+
+}
+
+func (n *StubNetwork) AddAddrs(id PeerID, addrs []ma.Multiaddr) {
+
+}
+
+func (n *StubNetwork) Addrs() []ma.Multiaddr {
+	return nil
+}

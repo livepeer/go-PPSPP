@@ -34,7 +34,7 @@ type Peer struct {
 }
 
 // NewPeer makes a new peer
-func NewPeer(port int, n Network, p Protocol) *Peer {
+func NewPeer(n Network, p Protocol) *Peer {
 	peer := Peer{n: n, P: p}
 
 	// set the network's datagram handler
@@ -52,7 +52,7 @@ func NewLibp2pPeer(port int) *Peer {
 	// This determines the network implementation (libp2p)
 	n := newLibp2pNetwork(port)
 
-	return NewPeer(port, n, prot)
+	return NewPeer(n, prot)
 }
 
 // ID returns the peer ID
@@ -80,4 +80,14 @@ func (p *Peer) Connect(id PeerID) error {
 func (p *Peer) Disconnect(id PeerID) error {
 	glog.Infof("%s: Disconnecting from %s", p.ID(), id)
 	return p.n.Connect(id)
+}
+
+// StringPeerID is a simple implementation of PeerID using an underlying string
+// Used for stubs
+type StringPeerID struct {
+	s string
+}
+
+func (s StringPeerID) String() string {
+	return s.s
 }
