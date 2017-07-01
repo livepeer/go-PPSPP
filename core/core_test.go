@@ -48,8 +48,8 @@ func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*
 	rand.Seed(seed)
 	port1 := rand.Intn(100) + 10000
 	port2 := port1 + 1
-	p1 := core.NewPeer(port1)
-	p2 := core.NewPeer(port2)
+	p1 := core.NewLibp2pPeer(port1)
+	p2 := core.NewLibp2pPeer(port2)
 	peerExchangeIDAddr(p1, p2)
 	p1.P.AddSwarm(metadata)
 	p2.P.AddSwarm(metadata)

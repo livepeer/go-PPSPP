@@ -33,22 +33,26 @@ type Peer struct {
 	n Network
 }
 
-// NewPeer makes and initializes a new peer
-func NewPeer(port int) *Peer {
+// NewPeer makes a new peer
+func NewPeer(port int, n Network, p Protocol) *Peer {
+	peer := Peer{n: n, P: p}
 
+	// set the network's datagram handler
+	peer.n.SetDatagramHandler(p.HandleDatagram)
+
+	peer.P.SetDatagramSender(n.SendDatagram)
+
+	return &peer
+}
+
+// NewLibp2pPeer makes a new peer with a libp2p network
+func NewLibp2pPeer(port int) *Peer {
 	prot := newPpspp()
 
 	// This determines the network implementation (libp2p)
 	n := newLibp2pNetwork(port)
 
-	p := Peer{n: n, P: prot}
-
-	// set the network's datagram handler
-	p.n.SetDatagramHandler(prot.HandleDatagram)
-
-	p.P.SetDatagramSender(n.SendDatagram)
-
-	return &p
+	return NewPeer(port, n, prot)
 }
 
 // ID returns the peer ID
