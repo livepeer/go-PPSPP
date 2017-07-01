@@ -19,14 +19,27 @@ import (
 
 // Network handles interactions with the underlying network
 type Network interface {
-	SendDatagram(d Datagram, id PeerID) error
-	Connect(id PeerID) error
-	Disconnect(id PeerID) error
+
+	// SendDatagram sends a datagram to the remote peer
+	SendDatagram(d Datagram, remote PeerID) error
+
+	// Connect connects to the remote peer and creates any io resources necessary for the connection
+	Connect(remote PeerID) error
+
+	// Disconnect disconnects from the remote peer and destroys any io resources created for the connection
+	Disconnect(remote PeerID) error
+
+	// ID returns the ID of this peer
 	ID() PeerID
+
+	// SetDatagramHandler sets the function that will be called on receipt of a new datagram
+	// f gets called every time a new Datagram is received.
 	SetDatagramHandler(f func(*Datagram, PeerID) error)
 
-	// FIXME: this is a hack for now... we don't want libp2p details in the interface (e.g. ma.Multiaddr)
-	AddAddrs(remote PeerID, addrs []ma.Multiaddr)
+	// AddAddrs adds multiaddresses for the remote peer to this peer's store
+	AddAddrs(id PeerID, addrs []ma.Multiaddr)
+
+	// Addrs returns multiaddresses for this peer
 	Addrs() []ma.Multiaddr
 }
 

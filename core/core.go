@@ -61,10 +61,12 @@ func (p *Peer) ID() PeerID {
 	return p.n.ID()
 }
 
-// FIXME: this is a hack for now... we don't want libp2p details here (e.g. ma.Multiaddr)
+// AddAddrs adds multiaddresses for the remote peer to this peer's store
 func (p *Peer) AddAddrs(remote PeerID, addrs []ma.Multiaddr) {
 	p.n.AddAddrs(remote, addrs)
 }
+
+// Addrs returns multiaddresses for this peer
 func (p *Peer) Addrs() []ma.Multiaddr {
 	return p.n.Addrs()
 }
