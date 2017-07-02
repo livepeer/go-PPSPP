@@ -83,7 +83,7 @@ func TestHandleHandshake(t *testing.T) {
 	}
 	replyH, ok2 := msent.Data.(HandshakeMsg)
 	if !ok2 {
-		t.Fatalf("handshake type assertion failed")
+		t.Fatalf("HandshakeMsg type assertion failed")
 	}
 	replyC := replyH.C
 	if replyC == 0 {

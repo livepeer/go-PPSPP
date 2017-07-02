@@ -40,7 +40,7 @@ func TestSendHave(t *testing.T) {
 	}
 	have, ok := m.Data.(HaveMsg)
 	if !ok {
-		t.Fatalf("handshake type assertion failed")
+		t.Fatalf("HaveMsg type assertion failed")
 	}
 	if gotStart := have.Start; gotStart != start {
 		t.Errorf("expected start=%d, got %d", start, gotStart)
