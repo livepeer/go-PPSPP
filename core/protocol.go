@@ -145,7 +145,7 @@ func (p *ppspp) HandleDatagram(d *Datagram, id PeerID) error {
 		cid := d.ChanID
 		_, ok := p.chans[cid]
 		if !ok {
-			return errors.New("channel not found")
+			return fmt.Errorf("channel %v not found", cid)
 		}
 		err := p.handleMsg(cid, msg, id)
 		if err != nil {

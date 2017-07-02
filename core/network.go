@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 
+	"container/list"
+
 	"github.com/golang/glog"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	host "github.com/libp2p/go-libp2p-host"
@@ -170,41 +172,68 @@ func (n *libp2pNetwork) receiveDatagram(ws *WrappedStream) (*Datagram, error) {
 
 // StubNetwork stores all sent datagrams without sending them anywhere
 type StubNetwork struct {
-	id            StringPeerID
-	SentDatagrams []*Datagram
+	id              StringPeerID
+	sentDatagrams   list.List
+	datagramHandler func(*Datagram, PeerID) error
 }
 
+// NewStubNetwork creates a new StubNetwork
 func NewStubNetwork(s string) *StubNetwork {
 	return &StubNetwork{id: StringPeerID{s}}
 }
 
+// SendDatagram stores the datagram without sending it anywhere
 func (n *StubNetwork) SendDatagram(d Datagram, remote PeerID) error {
-	n.SentDatagrams = append(n.SentDatagrams, &d)
+	n.sentDatagrams.PushBack(&d)
 	return nil
 }
 
+// ReadSentDatagram pops the oldest sent datagram and returns it
+// Intended to be used by tests that want to inspect what is being sent out on this stub network
+func (n *StubNetwork) ReadSentDatagram() *Datagram {
+	d := n.sentDatagrams.Front().Value.(*Datagram)
+	n.sentDatagrams.Remove(n.sentDatagrams.Front())
+	return d
+}
+
+// NumSentDatagrams returns the number of unread sent datagrams
+func (n *StubNetwork) NumSentDatagrams() int {
+	return n.sentDatagrams.Len()
+}
+
+// Connect is a nop for StubNetwork
 func (n *StubNetwork) Connect(remote PeerID) error {
 	return nil
 
 }
 
+// Disconnect is a nop for StubNetwork
 func (n *StubNetwork) Disconnect(remote PeerID) error {
 	return nil
 
 }
 
+// ID returns the PeerID for this peer on the network
 func (n *StubNetwork) ID() PeerID {
 	return n.id
 }
 
+// SetDatagramHandler sets the datagram handler function for incoming datagrams
 func (n *StubNetwork) SetDatagramHandler(f func(*Datagram, PeerID) error) {
-
+	n.datagramHandler = f
 }
 
+// InjectIncomingDatagram injects a datagram as if it came from the remote peer id
+func (n *StubNetwork) InjectIncomingDatagram(d *Datagram, id PeerID) error {
+	return n.datagramHandler(d, id)
+}
+
+// AddAddrs is a nop for StubNetwork
 func (n *StubNetwork) AddAddrs(id PeerID, addrs []ma.Multiaddr) {
 
 }
 
+// Addrs is a nop for StubNetwork
 func (n *StubNetwork) Addrs() []ma.Multiaddr {
 	return nil
 }

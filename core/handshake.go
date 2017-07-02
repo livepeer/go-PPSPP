@@ -79,7 +79,7 @@ func (p *ppspp) sendReqHandshake(ours ChanID, sid SwarmID) error {
 }
 
 func (p *ppspp) sendReplyHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
-	glog.Infof("sending reply handshake")
+	glog.Infof("sending reply handshake ours=%v, theirs=%v", ours, theirs)
 	return p.sendHandshake(ours, theirs, sid)
 }
 
@@ -102,6 +102,7 @@ func (p *ppspp) SendClosingHandshake(remote PeerID, sid SwarmID) error {
 }
 
 func (p *ppspp) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
+	glog.Infof("sending handshake ours=%v, theirs=%v", ours, theirs)
 	h := HandshakeMsg{C: ours, S: sid}
 	m := Msg{Op: Handshake, Data: h}
 	d := Datagram{ChanID: theirs, Msgs: []Msg{m}}
