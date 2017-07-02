@@ -16,7 +16,7 @@ func TestStartHandshake(t *testing.T) {
 	// Call StartHandshake
 	p.P.StartHandshake(StringPeerID{"p2"}, sid)
 
-	// Check the reply handshake for errors
+	// Check the sent handshake for errors
 	if num := n.NumSentDatagrams(); num != 1 {
 		t.Fatalf("sent %d datagrams", num)
 	}
