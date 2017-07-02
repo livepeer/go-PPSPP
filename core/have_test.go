@@ -9,39 +9,16 @@ func TestSendHave(t *testing.T) {
 	flag.Lookup("logtostderr").Value.Set("true")
 
 	// Set up the peer
-	p := newStubNetworkPeer("p1")
-	n := p.n.(*StubNetwork)
 	remote := StringPeerID{"p2"}
-	swarmMetadata := SwarmMetadata{ID: SwarmID(9), ChunkSize: 8}
-	sid := swarmMetadata.ID
-	p.P.AddSwarm(swarmMetadata)
-
-	// Call StartHandshake
-	p.P.StartHandshake(remote, sid)
-
-	// Read the channel and swarm IDs from the sent handshake so we can mock up a reply
-	d := n.ReadSentDatagram()
-	m := d.Msgs[0]
-	h, ok := m.Data.(HandshakeMsg)
-	if !ok {
-		t.Fatalf("handshake type assertion failed")
-	}
-
-	// Inject a reply handshake
+	sid := SwarmID(42)
 	remoteCID := ChanID(34)
-	replyH := HandshakeMsg{C: remoteCID, S: sid}
-	m = Msg{Op: Handshake, Data: replyH}
-	msgs := []Msg{m}
-	d = &Datagram{ChanID: h.C, Msgs: msgs}
-	err := n.InjectIncomingDatagram(d, remote)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p := setupPeerWithHandshake(t, remote, remoteCID, sid)
+	n := p.n.(*StubNetwork)
 
 	// Call SendHave
 	start := ChunkID(14)
 	end := ChunkID(23)
-	err = p.P.SendHave(start, end, remote, sid)
+	err := p.P.SendHave(start, end, remote, sid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,14 +27,14 @@ func TestSendHave(t *testing.T) {
 	if num := n.NumSentDatagrams(); num != 1 {
 		t.Fatalf("sent %d datagrams", num)
 	}
-	d = n.ReadSentDatagram()
+	d := n.ReadSentDatagram()
 	if c := d.ChanID; c != remoteCID {
 		t.Fatalf("have should be on channel %d, got %d", remoteCID, c)
 	}
 	if num := len(d.Msgs); num != 1 {
 		t.Fatalf("datagram with have should have 1 msg, got %d", num)
 	}
-	m = d.Msgs[0]
+	m := d.Msgs[0]
 	if op := m.Op; op != Have {
 		t.Fatalf("expected have op, got %v", op)
 	}
@@ -71,4 +48,35 @@ func TestSendHave(t *testing.T) {
 	if gotEnd := have.End; gotEnd != end {
 		t.Errorf("expected end=%d, got %d", end, gotEnd)
 	}
+}
+
+func setupPeerWithHandshake(t *testing.T, remote PeerID, remoteCID ChanID, sid SwarmID) *Peer {
+	// Set up the peer
+	p := newStubNetworkPeer("p1")
+	swarmMetadata := SwarmMetadata{ID: sid, ChunkSize: 8}
+	p.P.AddSwarm(swarmMetadata)
+	n := p.n.(*StubNetwork)
+
+	// Call StartHandshake
+	p.P.StartHandshake(remote, sid)
+
+	// Read the channel and swarm IDs from the sent handshake so we can mock up a reply
+	d := n.ReadSentDatagram()
+	m := d.Msgs[0]
+	h, ok := m.Data.(HandshakeMsg)
+	if !ok {
+		t.Fatalf("handshake type assertion failed")
+	}
+
+	// Inject a reply handshake
+	replyH := HandshakeMsg{C: remoteCID, S: sid}
+	m = Msg{Op: Handshake, Data: replyH}
+	msgs := []Msg{m}
+	d = &Datagram{ChanID: h.C, Msgs: msgs}
+	err := n.InjectIncomingDatagram(d, remote)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return p
 }

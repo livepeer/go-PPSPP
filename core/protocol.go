@@ -18,6 +18,7 @@ type Protocol interface {
 	AddSwarm(metadata SwarmMetadata)
 	Swarm(id SwarmID) (*Swarm, error)
 	SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error
+	SendRequest(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error
 }
 
 // MsgError is an error that happens while handling an incoming message
