@@ -8,38 +8,33 @@ import (
 func TestStartHandshake(t *testing.T) {
 	flag.Lookup("logtostderr").Value.Set("true")
 
+	// Set up the peer
 	sid := SwarmID(7)
-
 	p := newStubNetworkPeer("p1")
-
-	p.P.StartHandshake(StringPeerID{"p2"}, sid)
-
 	n := p.n.(*StubNetwork)
 
+	// Call StartHandshake
+	p.P.StartHandshake(StringPeerID{"p2"}, sid)
+
+	// Check the reply handshake for errors
 	if num := n.NumSentDatagrams(); num != 1 {
 		t.Fatalf("sent %d datagrams", num)
 	}
-
 	d := n.ReadSentDatagram()
-
 	if c := d.ChanID; c != 0 {
 		t.Fatalf("start handshake should be on channel 0, got %d", c)
 	}
-
 	if num := len(d.Msgs); num != 1 {
 		t.Fatalf("start handshake should have 1 msg, got %d", num)
 	}
-
 	m := d.Msgs[0]
 	if op := m.Op; op != Handshake {
 		t.Fatalf("expected handshake op, got %v", op)
 	}
-
 	h, ok := m.Data.(HandshakeMsg)
 	if !ok {
 		t.Fatalf("handshake type assertion failed")
 	}
-
 	if c := h.C; c == 0 {
 		t.Error("handshake cannot have C=0 (should be random positive int)")
 	}
