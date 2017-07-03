@@ -12,7 +12,7 @@ func TestSendRequest(t *testing.T) {
 	remote := StringPeerID{"p2"}
 	sid := SwarmID(42)
 	remoteCID := ChanID(34)
-	p := setupPeerWithHandshake(t, remote, remoteCID, sid)
+	p := setupPeerWithHandshake(t, remote, remoteCID, sid, 1)
 	n := p.n.(*StubNetwork)
 
 	// Call SendRequest

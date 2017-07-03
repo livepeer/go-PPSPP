@@ -146,7 +146,7 @@ func TestNetworkDataExchange(t *testing.T) {
 
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
-	swarmMetadata := core.SwarmMetadata{ID: core.SwarmID(7), ChunkSize: 8}
+	swarmMetadata := core.SwarmMetadata{ID: core.SwarmID(7), ChunkSize: 16}
 	sid := swarmMetadata.ID
 	p1, p2 := setupTwoPeerSwarm(t, 234, swarmMetadata)
 	glog.Infof("Data exchange between %s and %s on swarm %v\n", p1.ID(), p2.ID(), sid)
@@ -203,7 +203,9 @@ func sendHaves(t *testing.T, ref map[core.ChunkID]string, s core.SwarmID, p *cor
 	}
 	for i, data := range ref {
 		c := core.Chunk{ID: i, B: []byte(data)}
-		swarm.AddLocalChunk(i, &c)
+		if err := swarm.AddLocalChunk(i, &c); err != nil {
+			t.Fatal(err)
+		}
 	}
 	start := core.ChunkID(0)
 	end := core.ChunkID(len(ref) - 1)

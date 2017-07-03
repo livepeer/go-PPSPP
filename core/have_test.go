@@ -12,7 +12,7 @@ func TestSendHave(t *testing.T) {
 	remote := StringPeerID{"p2"}
 	sid := SwarmID(42)
 	remoteCID := ChanID(34)
-	p := setupPeerWithHandshake(t, remote, remoteCID, sid)
+	p := setupPeerWithHandshake(t, remote, remoteCID, sid, 2)
 	n := p.n.(*StubNetwork)
 
 	// Call SendHave
@@ -50,10 +50,10 @@ func TestSendHave(t *testing.T) {
 	}
 }
 
-func setupPeerWithHandshake(t *testing.T, remote PeerID, remoteCID ChanID, sid SwarmID) *Peer {
+func setupPeerWithHandshake(t *testing.T, remote PeerID, remoteCID ChanID, sid SwarmID, chunkSize int) *Peer {
 	// Set up the peer
 	p := newStubNetworkPeer("p1")
-	swarmMetadata := SwarmMetadata{ID: sid, ChunkSize: 8}
+	swarmMetadata := SwarmMetadata{ID: sid, ChunkSize: chunkSize}
 	p.P.AddSwarm(swarmMetadata)
 	n := p.n.(*StubNetwork)
 

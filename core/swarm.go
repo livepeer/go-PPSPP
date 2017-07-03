@@ -54,13 +54,26 @@ func (s *Swarm) AddRemoteHave(c ChunkID, p PeerID) {
 	s.remoteHaves[c].PushFront(p)
 }
 
+// checkChunk returns whether the chunk has any errors (e.g. wrong size)
+func (s *Swarm) checkChunk(c *Chunk) error {
+	ref := s.ChunkSize()
+	if size := len(c.B); ref != size {
+		return fmt.Errorf("checkChunk got size=%d, should be %d", size, ref)
+	}
+	return nil
+}
+
 // AddLocalChunk stores the chunk locally
-func (s *Swarm) AddLocalChunk(cid ChunkID, c *Chunk) {
+func (s *Swarm) AddLocalChunk(cid ChunkID, c *Chunk) error {
+	if err := s.checkChunk(c); err != nil {
+		return err
+	}
 	_, ok := s.localChunks[cid]
 	if ok {
 		glog.Warningf("addChunk overwriting existing chunk at id=%v", cid)
 	}
 	s.localChunks[cid] = c
+	return nil
 }
 
 // AddLocalChunks stores a contiguous chunk range, with input data batched in one array

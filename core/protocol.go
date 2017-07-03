@@ -17,6 +17,7 @@ type Protocol interface {
 	ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error)
 	AddSwarm(metadata SwarmMetadata)
 	Swarm(id SwarmID) (*Swarm, error)
+	AddLocalChunk(sid SwarmID, cid ChunkID, b []byte) error
 	SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error
 	SendRequest(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error
 	SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error
@@ -221,6 +222,16 @@ func (p *ppspp) ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error) {
 		return Unknown, fmt.Errorf("ProtocolState could not find chan for sid=%v, pid=%v, cid=%v", sid, pid, cid)
 	}
 	return c.state, nil
+}
+
+func (p *ppspp) AddLocalChunk(sid SwarmID, cid ChunkID, b []byte) error {
+	c := &Chunk{ID: cid, B: b}
+	swarm := p.swarms[sid]
+	ref := swarm.ChunkSize()
+	if size := len(b); ref != size {
+		return fmt.Errorf("AddLocalChunk got size=%d, should be %d", size, ref)
+	}
+	return swarm.AddLocalChunk(cid, c)
 }
 
 // addChan adds a channel at the key ours
