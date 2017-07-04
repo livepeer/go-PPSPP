@@ -38,8 +38,14 @@ func TestSendData(t *testing.T) {
 		t.Fatalf("sent %d datagrams", num)
 	}
 	d := n.ReadSentDatagram()
-	if c := d.ChanID; c != remoteCID {
-		t.Fatalf("data should be on channel %d, got %d", remoteCID, c)
+	checkSendDataDatagram(t, d, start, end, data, chunkSize, remoteCID)
+}
+
+// checkSendDataDatagram checks the datagram for errors
+// It should be a datagram with 1 message: a data message with the given start/end/chunks
+func checkSendDataDatagram(t *testing.T, d *Datagram, start ChunkID, end ChunkID, chunks map[ChunkID]string, chunkSize int, remote ChanID) {
+	if c := d.ChanID; c != remote {
+		t.Fatalf("data should be on channel %d, got %d", remote, c)
 	}
 	if num := len(d.Msgs); num != 1 {
 		t.Fatalf("datagram with data should have 1 msg, got %d", num)
@@ -52,16 +58,20 @@ func TestSendData(t *testing.T) {
 	if !ok {
 		t.Fatalf("DataMsg type assertion failed")
 	}
-	if gotStart := dataMsg.Start; gotStart != start {
+	checkDataMsg(t, &dataMsg, start, end, chunks, chunkSize)
+}
+
+func checkDataMsg(t *testing.T, m *DataMsg, start ChunkID, end ChunkID, chunks map[ChunkID]string, chunkSize int) {
+	if gotStart := m.Start; gotStart != start {
 		t.Errorf("expected start=%d, got %d", start, gotStart)
 	}
-	if gotEnd := dataMsg.End; gotEnd != end {
+	if gotEnd := m.End; gotEnd != end {
 		t.Errorf("expected end=%d, got %d", end, gotEnd)
 	}
-	for i := 0; i < len(data); i++ {
+	for i := 0; i < len(chunks); i++ {
 		for j := 0; j < chunkSize; j++ {
-			bref := []byte(data[ChunkID(i)])[j]
-			bgot := dataMsg.Data[(i*chunkSize)+j]
+			bref := []byte(chunks[ChunkID(i)])[j]
+			bgot := m.Data[(i*chunkSize)+j]
 			if bref != bgot {
 				t.Errorf("data mismatch chunk %d byte %d, bref=0x%x, bgot=0x%x", i, j, bref, bgot)
 			}

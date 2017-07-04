@@ -60,7 +60,7 @@ func TestHandleHave(t *testing.T) {
 	p := setupPeerWithHandshake(t, remote, remoteCID, sid, 2)
 	n := p.n.(*StubNetwork)
 
-	// Get the local channel ID for later
+	// Get the local channel ID for injecting the Have
 	prot := p.P.(*ppspp)
 	s, err := prot.Swarm(sid)
 	if err != nil {

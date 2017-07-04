@@ -49,3 +49,54 @@ func TestSendRequest(t *testing.T) {
 		t.Errorf("expected end=%d, got %d", end, gotEnd)
 	}
 }
+
+func TestHandleRequest(t *testing.T) {
+	flag.Lookup("logtostderr").Value.Set("true")
+
+	// Set up the peer
+	chunkSize := 16
+	remote := StringPeerID{"p2"}
+	sid := SwarmID(42)
+	remoteCID := ChanID(34)
+	p := setupPeerWithHandshake(t, remote, remoteCID, sid, chunkSize)
+	n := p.n.(*StubNetwork)
+
+	// Add the local chunks that will be requested
+	start := ChunkID(94)
+	end := ChunkID(96)
+	data := map[ChunkID]string{0: "aaaaAAAAaaaaAAAA", 1: "bbbbBBBBbbbbBBBB", 2: "ccccCCCCccccCCCC"}
+	for i, s := range data {
+		b := []byte(s)
+		if err := p.P.AddLocalChunk(sid, start+i, b); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Get the local channel ID for injecting the Request
+	prot := p.P.(*ppspp)
+	s, err := prot.Swarm(sid)
+	if err != nil {
+		t.Fatalf("swarm not found at sid=%d: %v", sid, err)
+	}
+	theirs, ok := s.ChanID(remote)
+	if !ok {
+		t.Fatalf("channel id not found at peer id %v", remote)
+	}
+
+	// Inject a Request message for a chunk range
+	m, err := messagize(RequestMsg{Start: start, End: end})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := datagramize(theirs, m)
+	if err := n.InjectIncomingDatagram(d, remote); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check the sent datagram for errors
+	if num := n.NumSentDatagrams(); num != 1 {
+		t.Fatalf("sent %d datagrams", num)
+	}
+	dsent := n.ReadSentDatagram()
+	checkSendDataDatagram(t, dsent, start, end, data, chunkSize, remoteCID)
+}
