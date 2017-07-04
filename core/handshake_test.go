@@ -74,7 +74,7 @@ func TestHandleHandshake(t *testing.T) {
 	if c := dsent.ChanID; c != cid {
 		t.Fatalf("reply handshake should be on channel %d, got %d", cid, c)
 	}
-	if num := len(d.Msgs); num == 0 {
+	if num := len(dsent.Msgs); num == 0 {
 		t.Fatal("datagram with reply handshake should have at least 1 msg")
 	}
 	msent := dsent.Msgs[0]

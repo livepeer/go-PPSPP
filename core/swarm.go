@@ -131,3 +131,9 @@ func (s *Swarm) DataFromLocalChunks(start ChunkID, end ChunkID) ([]byte, error) 
 func (s *Swarm) ChunkSize() int {
 	return s.metadata.ChunkSize
 }
+
+// ChanID returns the channel ID for the given peer, also returns bool indicating success of the lookup
+func (s *Swarm) ChanID(id PeerID) (ChanID, bool) {
+	c, ok := s.chans[id]
+	return c, ok
+}

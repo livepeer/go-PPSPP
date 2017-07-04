@@ -50,6 +50,66 @@ func TestSendHave(t *testing.T) {
 	}
 }
 
+func TestHandleHave(t *testing.T) {
+	flag.Lookup("logtostderr").Value.Set("true")
+
+	// Set up the peer
+	remote := StringPeerID{"p2"}
+	sid := SwarmID(42)
+	remoteCID := ChanID(34)
+	p := setupPeerWithHandshake(t, remote, remoteCID, sid, 2)
+	n := p.n.(*StubNetwork)
+
+	// Get the local channel ID for later
+	prot := p.P.(*ppspp)
+	s, err := prot.Swarm(sid)
+	if err != nil {
+		t.Fatalf("swarm not found at sid=%d: %v", sid, err)
+	}
+	theirs, ok := s.ChanID(remote)
+	if !ok {
+		t.Fatalf("channel id not found at peer id %v", remote)
+	}
+
+	// Inject a Have message for a chunk range
+	start := ChunkID(11)
+	end := ChunkID(13)
+	m, err := messagize(HaveMsg{Start: start, End: end})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := datagramize(theirs, m)
+	if err := n.InjectIncomingDatagram(d, remote); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check the sent datagram -- it should have a request for the chunk range
+	if num := n.NumSentDatagrams(); num != 1 {
+		t.Fatalf("sent %d datagrams", num)
+	}
+	dsent := n.ReadSentDatagram()
+	if c := dsent.ChanID; c != remoteCID {
+		t.Fatalf("request handshake should be on channel %d, got %d", remoteCID, c)
+	}
+	if num := len(dsent.Msgs); num == 0 {
+		t.Fatal("datagram with reply handshake should have at least 1 msg")
+	}
+	msent := dsent.Msgs[0]
+	if op := msent.Op; op != Request {
+		t.Fatalf("expected request op, got %v", op)
+	}
+	r, ok := msent.Data.(RequestMsg)
+	if !ok {
+		t.Fatalf("RequestMsg type assertion failed")
+	}
+	if r.Start != start {
+		t.Errorf("request start=%d, should be %d", r.Start, start)
+	}
+	if r.End != end {
+		t.Errorf("request end=%d, should be %d", r.End, end)
+	}
+}
+
 func setupPeerWithHandshake(t *testing.T, remote PeerID, remoteCID ChanID, sid SwarmID, chunkSize int) *Peer {
 	// Set up the peer
 	p := newStubNetworkPeer("p1")

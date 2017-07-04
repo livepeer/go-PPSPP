@@ -1,6 +1,8 @@
 package core
 
 import (
+	"fmt"
+
 	"github.com/golang/glog"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -90,4 +92,29 @@ type StringPeerID struct {
 
 func (s StringPeerID) String() string {
 	return s.s
+}
+
+// messagize creates a Msg from the given data, infering the opcode from the dynamic type of data
+func messagize(data interface{}) (*Msg, error) {
+	var op Opcode
+	switch data.(type) {
+	case HaveMsg:
+		op = Have
+	case HandshakeMsg:
+		op = Handshake
+	case RequestMsg:
+		op = Request
+	case DataMsg:
+		op = Data
+	default:
+		return nil, fmt.Errorf("bad data type")
+	}
+	m := Msg{Op: op, Data: data}
+	return &m, nil
+}
+
+// datagramize creates a datagram with a single message
+func datagramize(c ChanID, m *Msg) *Datagram {
+	msgs := []Msg{*m}
+	return &Datagram{ChanID: c, Msgs: msgs}
 }
