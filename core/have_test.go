@@ -28,26 +28,7 @@ func TestSendHave(t *testing.T) {
 		t.Fatalf("sent %d datagrams", num)
 	}
 	d := n.ReadSentDatagram()
-	if c := d.ChanID; c != remoteCID {
-		t.Fatalf("have should be on channel %d, got %d", remoteCID, c)
-	}
-	if num := len(d.Msgs); num != 1 {
-		t.Fatalf("datagram with have should have 1 msg, got %d", num)
-	}
-	m := d.Msgs[0]
-	if op := m.Op; op != Have {
-		t.Fatalf("expected have op, got %v", op)
-	}
-	have, ok := m.Data.(HaveMsg)
-	if !ok {
-		t.Fatalf("HaveMsg type assertion failed")
-	}
-	if gotStart := have.Start; gotStart != start {
-		t.Errorf("expected start=%d, got %d", start, gotStart)
-	}
-	if gotEnd := have.End; gotEnd != end {
-		t.Errorf("expected end=%d, got %d", end, gotEnd)
-	}
+	checkSendHaveDatagram(t, d, start, end, remoteCID)
 }
 
 func TestHandleHave(t *testing.T) {
@@ -139,4 +120,29 @@ func setupPeerWithHandshake(t *testing.T, remote PeerID, remoteCID ChanID, sid S
 	}
 
 	return p
+}
+
+// checkSendHaveDatagram checks the datagram for errors
+// It should be a datagram with 1 message: a have message with the given parameters
+func checkSendHaveDatagram(t *testing.T, d *Datagram, start ChunkID, end ChunkID, remote ChanID) {
+	if c := d.ChanID; c != remote {
+		t.Fatalf("have should be on channel %d, got %d", remote, c)
+	}
+	if num := len(d.Msgs); num != 1 {
+		t.Fatalf("datagram with have should have 1 msg, got %d", num)
+	}
+	m := d.Msgs[0]
+	if op := m.Op; op != Have {
+		t.Fatalf("expected have op, got %v", op)
+	}
+	have, ok := m.Data.(HaveMsg)
+	if !ok {
+		t.Fatalf("HaveMsg type assertion failed")
+	}
+	if gotStart := have.Start; gotStart != start {
+		t.Errorf("expected start=%d, got %d", start, gotStart)
+	}
+	if gotEnd := have.End; gotEnd != end {
+		t.Errorf("expected end=%d, got %d", end, gotEnd)
+	}
 }

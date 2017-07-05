@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"flag"
 	"testing"
 )
@@ -41,8 +42,56 @@ func TestSendData(t *testing.T) {
 	checkSendDataDatagram(t, d, start, end, data, chunkSize, remoteCID)
 }
 
+func TestHandleData(t *testing.T) {
+	flag.Lookup("logtostderr").Value.Set("true")
+
+	// Set up the peer
+	chunkSize := 16
+	remote := StringPeerID{"p2"}
+	sid := SwarmID(42)
+	remoteCID := ChanID(34)
+	p := setupPeerWithHandshake(t, remote, remoteCID, sid, chunkSize)
+	n := p.n.(*StubNetwork)
+
+	// Get the local channel ID for injecting the Request
+	theirs := theirs(t, p, sid, remote)
+
+	// Inject DataMsg
+	start := ChunkID(14)
+	end := ChunkID(start + 1)
+	data := []byte("aaaaAAAAaaaaAAAAbbbbBBBBbbbbBBBB")
+	m, err := messagize(DataMsg{Start: start, End: end, Data: data})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := datagramize(theirs, m)
+	if err := n.InjectIncomingDatagram(d, remote); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that the data is stored locally
+	swarm, err := p.P.Swarm(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotData, err := swarm.DataFromLocalChunks(start, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmp := bytes.Compare(data, gotData); cmp != 0 {
+		t.Errorf("data mismatch %d, data=%v, gotData=%v", cmp, data, gotData)
+	}
+
+	// Check sent have message for errors
+	if num := n.NumSentDatagrams(); num != 1 {
+		t.Fatalf("sent %d datagrams", num)
+	}
+	dsent := n.ReadSentDatagram()
+	checkSendHaveDatagram(t, dsent, start, end, remoteCID)
+}
+
 // checkSendDataDatagram checks the datagram for errors
-// It should be a datagram with 1 message: a data message with the given start/end/chunks
+// It should be a datagram with 1 message: a data message with the given parameters
 func checkSendDataDatagram(t *testing.T, d *Datagram, start ChunkID, end ChunkID, chunks map[ChunkID]string, chunkSize int, remote ChanID) {
 	if c := d.ChanID; c != remote {
 		t.Fatalf("data should be on channel %d, got %d", remote, c)

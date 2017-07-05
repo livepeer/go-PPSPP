@@ -73,15 +73,7 @@ func TestHandleRequest(t *testing.T) {
 	}
 
 	// Get the local channel ID for injecting the Request
-	prot := p.P.(*ppspp)
-	s, err := prot.Swarm(sid)
-	if err != nil {
-		t.Fatalf("swarm not found at sid=%d: %v", sid, err)
-	}
-	theirs, ok := s.ChanID(remote)
-	if !ok {
-		t.Fatalf("channel id not found at peer id %v", remote)
-	}
+	theirs := theirs(t, p, sid, remote)
 
 	// Inject a Request message for a chunk range
 	m, err := messagize(RequestMsg{Start: start, End: end})
@@ -99,4 +91,18 @@ func TestHandleRequest(t *testing.T) {
 	}
 	dsent := n.ReadSentDatagram()
 	checkSendDataDatagram(t, dsent, start, end, data, chunkSize, remoteCID)
+}
+
+// theirs returns the local channel ID that the injected datagram should use
+func theirs(t *testing.T, p *Peer, sid SwarmID, remote PeerID) ChanID {
+	prot := p.P.(*ppspp)
+	s, err := prot.Swarm(sid)
+	if err != nil {
+		t.Fatalf("swarm not found at sid=%d: %v", sid, err)
+	}
+	theirs, ok := s.ChanID(remote)
+	if !ok {
+		t.Fatalf("channel id not found at peer id %v", remote)
+	}
+	return theirs
 }
