@@ -52,10 +52,13 @@ type libp2pNetwork struct {
 	h host.Host
 }
 
-func newLibp2pNetwork(port int) *libp2pNetwork {
+func newLibp2pNetwork(port int) (*libp2pNetwork, error) {
 	streams := make(map[PeerID](*WrappedStream))
-	h := newBasicHost(port)
-	return &libp2pNetwork{streams: streams, h: h}
+	h, err := newBasicHost(port)
+	if err != nil {
+		return nil, err
+	}
+	return &libp2pNetwork{streams: streams, h: h}, nil
 }
 
 func (n *libp2pNetwork) ID() PeerID {
@@ -141,18 +144,28 @@ func (n *libp2pNetwork) Disconnect(id PeerID) error {
 }
 
 // newBasicHost makes and initializes a basic host
-func newBasicHost(port int) host.Host {
-	// Ignoring most errors for brevity
-	// See echo example for more details and better implementation
-	priv, pub, _ := crypto.GenerateKeyPair(crypto.RSA, 2048)
-	pid, _ := libp2ppeer.IDFromPublicKey(pub)
-	listen, _ := ma.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port))
+func newBasicHost(port int) (host.Host, error) {
+	priv, pub, err := crypto.GenerateKeyPair(crypto.RSA, 2048)
+	if err != nil {
+		return nil, err
+	}
+	pid, err := libp2ppeer.IDFromPublicKey(pub)
+	if err != nil {
+		return nil, err
+	}
+	listen, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port))
+	if err != nil {
+		return nil, err
+	}
 	ps := ps.NewPeerstore()
 	ps.AddPrivKey(pid, priv)
 	ps.AddPubKey(pid, pub)
-	n, _ := libp2pswarm.NewNetwork(context.Background(),
+	n, err := libp2pswarm.NewNetwork(context.Background(),
 		[]ma.Multiaddr{listen}, pid, ps, nil)
-	return bhost.New(n)
+	if err != nil {
+		return nil, err
+	}
+	return bhost.New(n), nil
 }
 
 // receiveDatagram reads and decodes a datagram from the stream

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"container/list"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -124,7 +125,8 @@ type ppspp struct {
 	datagramSender func(Datagram, PeerID) error
 }
 
-func newPpspp() *ppspp {
+// NewPpspp creates a new PPSPP protocol object
+func NewPpspp() *ppspp {
 
 	// initially, there are no locally known swarms
 	swarms := make(map[SwarmID](*Swarm))
@@ -268,4 +270,83 @@ func (p *ppspp) randomUnusedChanID() ChanID {
 			return c
 		}
 	}
+}
+
+// StubProtocol handles incoming datagrams by storing them
+type StubProtocol struct {
+	handledDatagrams list.List
+}
+
+func newStubProtocol() *StubProtocol {
+	return &StubProtocol{}
+}
+
+// incoming is for holding the (datagram, id) pair that is sent to HandleDatagram
+// only meant to be used by StubProtocol
+type incoming struct {
+	d  *Datagram
+	id PeerID
+}
+
+// HandleDatagram stores incoming datagram, peerid pairs
+func (p *StubProtocol) HandleDatagram(d *Datagram, id PeerID) error {
+	p.handledDatagrams.PushBack(incoming{d, id})
+	return nil
+}
+
+// ReadHandledDatagram pops the oldest handled datagram and returns it, along with the peer it came from
+// Intended to be used by tests that want to inspect what is being handled by this stub protocol
+func (p *StubProtocol) ReadHandledDatagram() (*Datagram, PeerID, error) {
+	i, ok := p.handledDatagrams.Front().Value.(incoming)
+	if !ok {
+		return nil, StringPeerID{"0"}, fmt.Errorf("type assertion failed")
+	}
+	p.handledDatagrams.Remove(p.handledDatagrams.Front())
+	return i.d, i.id, nil
+}
+
+// NumHandledDatagrams returns the number of unread handled datagrams
+func (p *StubProtocol) NumHandledDatagrams() int {
+	return p.handledDatagrams.Len()
+}
+
+// SetDatagramSender is a noop for StubProtocol
+func (p *StubProtocol) SetDatagramSender(f func(Datagram, PeerID) error) {
+
+}
+
+func (p *StubProtocol) StartHandshake(remote PeerID, sid SwarmID) error {
+	return nil
+}
+
+func (p *StubProtocol) SendClosingHandshake(remote PeerID, sid SwarmID) error {
+	return nil
+}
+
+func (p *StubProtocol) ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error) {
+	return Begin, nil
+}
+
+func (p *StubProtocol) AddSwarm(metadata SwarmMetadata) {
+
+}
+
+func (p *StubProtocol) Swarm(id SwarmID) (*Swarm, error) {
+	return nil, nil
+}
+
+func (p *StubProtocol) AddLocalChunk(sid SwarmID, cid ChunkID, b []byte) error {
+	return nil
+}
+
+func (p *StubProtocol) SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
+	return nil
+}
+
+func (p *StubProtocol) SendRequest(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
+	return nil
+}
+
+func (p *StubProtocol) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
+	return nil
 }

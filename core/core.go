@@ -48,13 +48,19 @@ func NewPeer(n Network, p Protocol) *Peer {
 }
 
 // NewLibp2pPeer makes a new peer with a libp2p network
-func NewLibp2pPeer(port int) *Peer {
-	prot := newPpspp()
-
+func NewLibp2pPeer(port int, p Protocol) (*Peer, error) {
 	// This determines the network implementation (libp2p)
-	n := newLibp2pNetwork(port)
+	n, err := newLibp2pNetwork(port)
+	if err != nil {
+		return nil, err
+	}
 
-	return NewPeer(n, prot)
+	return NewPeer(n, p), nil
+}
+
+// NewPpsppPeer makes a new peer with a ppspp protocol
+func NewPpsppPeer(n Network) (*Peer, error) {
+	return NewPeer(n, NewPpspp()), nil
 }
 
 // ID returns the peer ID

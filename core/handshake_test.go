@@ -110,7 +110,7 @@ func TestHandleHandshake(t *testing.T) {
 }
 
 func newStubNetworkPeer(id string) *Peer {
-	p := newPpspp()
+	p := NewPpspp()
 
 	n := NewStubNetwork(id)
 
