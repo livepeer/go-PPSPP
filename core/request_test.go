@@ -95,7 +95,7 @@ func TestHandleRequest(t *testing.T) {
 
 // theirs returns the local channel ID that the injected datagram should use
 func theirs(t *testing.T, p *Peer, sid SwarmID, remote PeerID) ChanID {
-	prot := p.P.(*ppspp)
+	prot := p.P.(*Ppspp)
 	s, err := prot.Swarm(sid)
 	if err != nil {
 		t.Fatalf("swarm not found at sid=%d: %v", sid, err)

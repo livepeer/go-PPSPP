@@ -15,7 +15,7 @@ type HandshakeMsg struct {
 }
 
 // StartHandshake sends a starting handshake message to the remote peer on swarm sid
-func (p *ppspp) StartHandshake(remote PeerID, sid SwarmID) error {
+func (p *Ppspp) StartHandshake(remote PeerID, sid SwarmID) error {
 	glog.Infof("starting handshake with %v", remote)
 
 	ours := p.chooseOutChan()
@@ -25,7 +25,7 @@ func (p *ppspp) StartHandshake(remote PeerID, sid SwarmID) error {
 	return p.sendReqHandshake(ours, sid)
 }
 
-func (p *ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
+func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 	glog.Infof("handling handshake from %v", remote)
 	h, ok := m.Data.(HandshakeMsg)
 	if !ok {
@@ -73,18 +73,18 @@ func (p *ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 	return nil
 }
 
-func (p *ppspp) sendReqHandshake(ours ChanID, sid SwarmID) error {
+func (p *Ppspp) sendReqHandshake(ours ChanID, sid SwarmID) error {
 	glog.Infof("sending request handshake")
 	return p.sendHandshake(ours, 0, sid)
 }
 
-func (p *ppspp) sendReplyHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
+func (p *Ppspp) sendReplyHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
 	glog.Infof("sending reply handshake ours=%v, theirs=%v", ours, theirs)
 	return p.sendHandshake(ours, theirs, sid)
 }
 
 // SendClosingHandshake sends a closing handshake message to the remote peer on swarm sid
-func (p *ppspp) SendClosingHandshake(remote PeerID, sid SwarmID) error {
+func (p *Ppspp) SendClosingHandshake(remote PeerID, sid SwarmID) error {
 	// get chanID from PeerID and SwarmID
 	c := p.swarms[sid].chans[remote]
 
@@ -101,7 +101,7 @@ func (p *ppspp) SendClosingHandshake(remote PeerID, sid SwarmID) error {
 	return p.closeChannel(c)
 }
 
-func (p *ppspp) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
+func (p *Ppspp) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
 	glog.Infof("sending handshake ours=%v, theirs=%v", ours, theirs)
 	h := HandshakeMsg{C: ours, S: sid}
 	m := Msg{Op: Handshake, Data: h}
@@ -109,7 +109,7 @@ func (p *ppspp) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
 	return p.sendDatagram(d, ours)
 }
 
-func (p *ppspp) chooseOutChan() ChanID {
+func (p *Ppspp) chooseOutChan() ChanID {
 	// FIXME: see Issue #10
 	return p.randomUnusedChanID()
 }

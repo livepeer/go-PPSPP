@@ -115,7 +115,8 @@ type Chan struct {
 	remote PeerID        // PeerID of the remote peer
 }
 
-type ppspp struct {
+// Ppspp is a PPSPP implementation
+type Ppspp struct {
 	// all of this peer's channels, indexed by a local ChanID
 	chans map[ChanID]*Chan
 
@@ -126,7 +127,7 @@ type ppspp struct {
 }
 
 // NewPpspp creates a new PPSPP protocol object
-func NewPpspp() *ppspp {
+func NewPpspp() *Ppspp {
 
 	// initially, there are no locally known swarms
 	swarms := make(map[SwarmID](*Swarm))
@@ -136,12 +137,13 @@ func NewPpspp() *ppspp {
 	chans[0] = &Chan{}
 	chans[0].state = Begin
 
-	p := ppspp{chans: chans, swarms: swarms}
+	p := Ppspp{chans: chans, swarms: swarms}
 
 	return &p
 }
 
-func (p *ppspp) HandleDatagram(d *Datagram, id PeerID) error {
+// HandleDatagram handles an incoming datagram from a remote peer with the given id
+func (p *Ppspp) HandleDatagram(d *Datagram, id PeerID) error {
 	glog.Infof("handling datagram from %v: %v\n", id, d)
 	if len(d.Msgs) == 0 {
 		return errors.New("no messages in datagram")
@@ -160,11 +162,12 @@ func (p *ppspp) HandleDatagram(d *Datagram, id PeerID) error {
 	return nil
 }
 
-func (p *ppspp) SetDatagramSender(f func(Datagram, PeerID) error) {
+// SetDatagramSender sets the datagram sender function
+func (p *Ppspp) SetDatagramSender(f func(Datagram, PeerID) error) {
 	p.datagramSender = f
 }
 
-func (p *ppspp) sendDatagram(d Datagram, c ChanID) error {
+func (p *Ppspp) sendDatagram(d Datagram, c ChanID) error {
 	_, ok := p.chans[c]
 	if !ok {
 		return fmt.Errorf("could not find channel %v", c)
@@ -174,12 +177,12 @@ func (p *ppspp) sendDatagram(d Datagram, c ChanID) error {
 }
 
 // AddSwarm adds a swarm with a given ID
-func (p *ppspp) AddSwarm(metadata SwarmMetadata) {
+func (p *Ppspp) AddSwarm(metadata SwarmMetadata) {
 	p.swarms[metadata.ID] = NewSwarm(metadata)
 }
 
 // Swarm returns the swarm at the given id
-func (p *ppspp) Swarm(id SwarmID) (*Swarm, error) {
+func (p *Ppspp) Swarm(id SwarmID) (*Swarm, error) {
 	s, ok := p.swarms[id]
 	if ok {
 		return s, nil
@@ -187,7 +190,7 @@ func (p *ppspp) Swarm(id SwarmID) (*Swarm, error) {
 	return nil, fmt.Errorf("could not find swarm at id=%v", id)
 }
 
-func (p *ppspp) handleMsg(c ChanID, m Msg, remote PeerID) error {
+func (p *Ppspp) handleMsg(c ChanID, m Msg, remote PeerID) error {
 	switch m.Op {
 	case Handshake:
 		return p.handleHandshake(c, m, remote)
@@ -202,7 +205,7 @@ func (p *ppspp) handleMsg(c ChanID, m Msg, remote PeerID) error {
 	}
 }
 
-func (p *ppspp) closeChannel(c ChanID) error {
+func (p *Ppspp) closeChannel(c ChanID) error {
 	glog.Info("closing channel")
 	delete(p.chans, c)
 	return nil
@@ -210,7 +213,7 @@ func (p *ppspp) closeChannel(c ChanID) error {
 
 // ProtocolState returns the current ProtocolState in a swarm for a given remote peer
 // if this returns unknown state, check error for reason
-func (p *ppspp) ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error) {
+func (p *Ppspp) ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error) {
 	s, ok1 := p.swarms[sid]
 	if !ok1 {
 		return Unknown, fmt.Errorf("ProtocolState could not find swarm at sid=%v", sid)
@@ -226,7 +229,8 @@ func (p *ppspp) ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error) {
 	return c.state, nil
 }
 
-func (p *ppspp) AddLocalChunk(sid SwarmID, cid ChunkID, b []byte) error {
+// AddLocalChunk stores a chunk locally for the given swarm
+func (p *Ppspp) AddLocalChunk(sid SwarmID, cid ChunkID, b []byte) error {
 	c := &Chunk{ID: cid, B: b}
 	swarm := p.swarms[sid]
 	ref := swarm.ChunkSize()
@@ -237,7 +241,7 @@ func (p *ppspp) AddLocalChunk(sid SwarmID, cid ChunkID, b []byte) error {
 }
 
 // addChan adds a channel at the key ours
-func (p *ppspp) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolState, remote PeerID) error {
+func (p *Ppspp) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolState, remote PeerID) error {
 	glog.Infof("addChan ours=%v, sid=%v, theirs=%v, state=%v, remote=%v", ours, sid, theirs, state, remote)
 
 	if ours < 1 {
@@ -258,7 +262,7 @@ func (p *ppspp) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolS
 	return nil
 }
 
-func (p *ppspp) randomUnusedChanID() ChanID {
+func (p *Ppspp) randomUnusedChanID() ChanID {
 	// FIXME: seed should be based on time.now or something, but maybe
 	// deterministic in some test/debug mode
 	rand.Seed(486)
@@ -315,38 +319,47 @@ func (p *StubProtocol) SetDatagramSender(f func(Datagram, PeerID) error) {
 
 }
 
+// StartHandshake is a noop for StubProtocol
 func (p *StubProtocol) StartHandshake(remote PeerID, sid SwarmID) error {
 	return nil
 }
 
+// SendClosingHandshake is a noop for StubProtocol
 func (p *StubProtocol) SendClosingHandshake(remote PeerID, sid SwarmID) error {
 	return nil
 }
 
+// ProtocolState is a noop for StubProtocol
 func (p *StubProtocol) ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error) {
 	return Begin, nil
 }
 
+// AddSwarm is a noop for StubProtocol
 func (p *StubProtocol) AddSwarm(metadata SwarmMetadata) {
 
 }
 
+// Swarm is a noop for StubProtocol
 func (p *StubProtocol) Swarm(id SwarmID) (*Swarm, error) {
 	return nil, nil
 }
 
+// AddLocalChunk is a noop for StubProtocol
 func (p *StubProtocol) AddLocalChunk(sid SwarmID, cid ChunkID, b []byte) error {
 	return nil
 }
 
+// SendHave is a noop for StubProtocol
 func (p *StubProtocol) SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
 	return nil
 }
 
+// SendRequest is a noop for StubProtocol
 func (p *StubProtocol) SendRequest(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
 	return nil
 }
 
+// SendData is a noop for StubProtocol
 func (p *StubProtocol) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
 	return nil
 }

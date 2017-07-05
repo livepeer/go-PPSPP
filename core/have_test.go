@@ -42,7 +42,7 @@ func TestHandleHave(t *testing.T) {
 	n := p.n.(*StubNetwork)
 
 	// Get the local channel ID for injecting the Have
-	prot := p.P.(*ppspp)
+	prot := p.P.(*Ppspp)
 	s, err := prot.Swarm(sid)
 	if err != nil {
 		t.Fatalf("swarm not found at sid=%d: %v", sid, err)

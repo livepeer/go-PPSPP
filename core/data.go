@@ -11,7 +11,7 @@ type DataMsg struct {
 }
 
 // SendData sends the chunk range in a data message
-func (p *ppspp) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
+func (p *Ppspp) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
 	glog.Infof("SendData Chunks %d-%d, to %v, on %v", start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]
 	if !ok1 {
@@ -35,7 +35,7 @@ func (p *ppspp) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID)
 	return p.sendDatagram(d, ours)
 }
 
-func (p *ppspp) handleData(cid ChanID, m Msg, remote PeerID) error {
+func (p *Ppspp) handleData(cid ChanID, m Msg, remote PeerID) error {
 	glog.Infof("handleData from %v", remote)
 	c, ok1 := p.chans[cid]
 	if !ok1 {

@@ -13,7 +13,7 @@ type RequestMsg struct {
 // TODO: SendBatchRequests - like SendRequest but batches multiple requests into a single datagram
 
 // SendRequest sends a request for the chunk range to the remote peer on the swarm
-func (p *ppspp) SendRequest(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
+func (p *Ppspp) SendRequest(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
 	glog.Infof("SendReq Chunk %v-%v, to %v, on %v", start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]
 	if !ok1 {
@@ -33,7 +33,7 @@ func (p *ppspp) SendRequest(start ChunkID, end ChunkID, remote PeerID, sid Swarm
 	return p.sendDatagram(d, ours)
 }
 
-func (p *ppspp) handleRequest(cid ChanID, m Msg, remote PeerID) error {
+func (p *Ppspp) handleRequest(cid ChanID, m Msg, remote PeerID) error {
 	glog.Infof("handleRequest from %v", remote)
 	c, ok1 := p.chans[cid]
 	if !ok1 {
@@ -53,7 +53,7 @@ func (p *ppspp) handleRequest(cid ChanID, m Msg, remote PeerID) error {
 }
 
 // Send any chunks in range that we have locally
-func (p *ppspp) sendLocalChunksInRange(start ChunkID, end ChunkID, remote PeerID, sid SwarmID, s *Swarm) error {
+func (p *Ppspp) sendLocalChunksInRange(start ChunkID, end ChunkID, remote PeerID, sid SwarmID, s *Swarm) error {
 	var startRange ChunkID
 	var endRange ChunkID
 	haveRange := false

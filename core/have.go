@@ -13,7 +13,7 @@ type HaveMsg struct {
 // TODO: SendBatchHaves - like SendHave but batches multiple haves into a single datagram
 
 // SendHave sends a have message for the chunk range to the remote peer on the Swarm
-func (p *ppspp) SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
+func (p *Ppspp) SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
 	glog.Infof("SendHave Chunks %d-%d, to %v, on %v", start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]
 	if !ok1 {
@@ -33,7 +33,7 @@ func (p *ppspp) SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID)
 	return p.sendDatagram(d, ours)
 }
 
-func (p *ppspp) handleHave(cid ChanID, m Msg, remote PeerID) error {
+func (p *Ppspp) handleHave(cid ChanID, m Msg, remote PeerID) error {
 	glog.Infof("handleHave from %v", remote)
 	c, ok1 := p.chans[cid]
 	if !ok1 {
@@ -52,7 +52,7 @@ func (p *ppspp) handleHave(cid ChanID, m Msg, remote PeerID) error {
 	return p.requestWantedChunksInRange(h.Start, h.End, remote, sid, s)
 }
 
-func (p *ppspp) requestWantedChunksInRange(start ChunkID, end ChunkID, remote PeerID, sid SwarmID, s *Swarm) error {
+func (p *Ppspp) requestWantedChunksInRange(start ChunkID, end ChunkID, remote PeerID, sid SwarmID, s *Swarm) error {
 	var startRange ChunkID
 	var endRange ChunkID
 	wantedRange := false
