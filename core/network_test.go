@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 func TestConnect(t *testing.T) {
@@ -35,6 +37,22 @@ func TestDisonnect(t *testing.T) {
 	err = p2.n.Disconnect(p1.ID())
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Try to send a datagram
+	c := ChanID(5)
+	start := ChunkID(3)
+	end := ChunkID(5)
+	msend, err := messagize(HaveMsg{Start: start, End: end})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dsend := datagramize(c, msend)
+	err = p1.n.SendDatagram(*dsend, p2.ID())
+	if err == nil {
+		t.Fatal("SendDatagram should fail")
+	} else {
+		glog.Infof("SendDatagram returned error as expected: %v", err)
 	}
 }
 

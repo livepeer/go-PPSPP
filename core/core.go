@@ -87,7 +87,7 @@ func (p *Peer) Connect(id PeerID) error {
 // Disconnect closes the stream that p is using to connect to the peer at id
 func (p *Peer) Disconnect(id PeerID) error {
 	glog.Infof("%s: Disconnecting from %s", p.ID(), id)
-	return p.n.Connect(id)
+	return p.n.Disconnect(id)
 }
 
 // StringPeerID is a simple implementation of PeerID using an underlying string

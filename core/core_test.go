@@ -42,6 +42,14 @@ func TestNetworkHandshake(t *testing.T) {
 
 	p1.Disconnect(p2.ID())
 	p2.Disconnect(p1.ID())
+
+	// Test Disconnect by making sure another handshake fails
+	err := p1.P.StartHandshake(p2.ID(), swarmMetadata.ID)
+	if err == nil {
+		t.Error("StartHandshake should fail after Disconnect")
+	} else {
+		glog.Infof("StartHandshake error as expected: %v", err)
+	}
 }
 
 func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*core.Peer, *core.Peer) {
