@@ -109,6 +109,20 @@ func TestHandleHandshake(t *testing.T) {
 	}
 }
 
+func TestHandshakeRace(t *testing.T) {
+	t.Fatal("TODO")
+
+	// Bootstrap two peers with connections
+
+	// in a loop of N iterations:
+	// Kick off two threads to StartHandshake concurrently
+	// Wait
+	// Check that state is ready on both sides
+	// Kick off two threads to ClosingHandshake concurrently
+	// Check that state is begin on both sides
+
+}
+
 func newStubNetworkPeer(id string) *Peer {
 	p := NewPpspp()
 

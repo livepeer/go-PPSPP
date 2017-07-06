@@ -93,6 +93,19 @@ func TestHandleRequest(t *testing.T) {
 	checkSendDataDatagram(t, dsent, start, end, data, chunkSize, remoteCID)
 }
 
+func TestRequestNoResponse(t *testing.T) {
+	t.Fatal("TODO")
+
+	// Set up a peer
+	// Inject a handshake, inspect the reply handshake to get channel id
+	// Inject a have message for chunk c from "p2"
+	// Inject a have message for chunk c from "p3"
+	// peer should send a request for c to one of the peers
+	// Do not respond to request
+	// Wait
+	// peer should eventually cancel the request and send a request for c to the other remote peer
+}
+
 // theirs returns the local channel ID that the injected datagram should use
 func theirs(t *testing.T, p *Peer, sid SwarmID, remote PeerID) ChanID {
 	prot := p.P.(*Ppspp)

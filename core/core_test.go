@@ -11,6 +11,20 @@ import (
 	"github.com/livepeer/go-PPSPP/core"
 )
 
+func TestSwarm(t *testing.T) {
+	t.Fatal("TODO")
+	// Setup N peers, each with some random subset of a buffer
+	// somehow make sure that all bytes are somewhere
+
+	// Magic bootstrap the peer connections so they are completely connected
+
+	// Randomly start some handshakes
+
+	// Wait for data to flow around
+
+	// Check that all the peers have all the data
+}
+
 // TestNetworkHandshake tests a handshake between two peers on two different ports
 func TestNetworkHandshake(t *testing.T) {
 	flag.Lookup("logtostderr").Value.Set("true")
