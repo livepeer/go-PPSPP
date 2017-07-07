@@ -39,7 +39,18 @@ func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 		}
 		// need to create a new channel
 		newCID := p.chooseOutChan()
-		p.addChan(newCID, h.S, h.C, Ready, remote)
+		// Check if we already have a channel for this remote peer in the swarm
+		sw, ok := p.swarms[h.S]
+		if ok {
+			cid, ok := sw.chans[remote]
+			if ok {
+				// TODO: Need to figure out how to handle this case. See TestHandshakeRace in handshake_test.go
+				return fmt.Errorf("handleHandshake error: channel %d already exists for %v, don't know what to do", cid, remote)
+			}
+		}
+		if err := p.addChan(newCID, h.S, h.C, Ready, remote); err != nil {
+			return err
+		}
 		glog.Infof("moving to ready state")
 		p.sendReplyHandshake(newCID, h.C, h.S)
 	} else {

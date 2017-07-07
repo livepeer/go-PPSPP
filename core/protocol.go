@@ -249,13 +249,21 @@ func (p *Ppspp) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolS
 	}
 
 	// add the channel to the peer-level map
+	_, ok := p.chans[ours]
+	if ok {
+		return fmt.Errorf("addChan error: channel %d already exists", ours)
+	}
 	p.chans[ours] = &Chan{sw: sid, theirs: theirs, state: state, remote: remote}
 
 	// add the channel to the swarm-level map
-	glog.Infof("adding channel %v to swarm %v for %v", ours, sid, remote)
+	glog.Infof("adding channel %v to %v for %v", ours, sid, remote)
 	sw, ok := p.swarms[sid]
 	if !ok {
-		return fmt.Errorf("no swarm exists at sid=%v", sid)
+		return fmt.Errorf("no swarm exists at sid=%d", sid)
+	}
+	cid, ok := sw.chans[remote]
+	if ok {
+		return fmt.Errorf("addChan error: channel %d already exists for %v", cid, remote)
 	}
 	sw.chans[remote] = ours
 

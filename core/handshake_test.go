@@ -109,18 +109,37 @@ func TestHandleHandshake(t *testing.T) {
 	}
 }
 
+// TestHandshakeRace tests the case where two peers start handshakes to each other at the same time
 func TestHandshakeRace(t *testing.T) {
-	t.Fatal("TODO")
+	flag.Lookup("logtostderr").Value.Set("true")
 
-	// Bootstrap two peers with connections
+	// Set up p1
+	p := newStubNetworkPeer("p1")
+	remote := StringPeerID{"p2"}
+	stubNetwork, ok := p.n.(*StubNetwork)
+	if !ok {
+		t.Fatal("StubNetwork type assertion failed")
+	}
+	cid := ChanID(4)
 
-	// in a loop of N iterations:
-	// Kick off two threads to StartHandshake concurrently
-	// Wait
-	// Check that state is ready on both sides
-	// Kick off two threads to ClosingHandshake concurrently
-	// Check that state is begin on both sides
+	// Set up a swarm
+	swarmMetadata := SwarmMetadata{ID: SwarmID(8), ChunkSize: 8}
+	p.P.AddSwarm(swarmMetadata)
 
+	// Start handshake with p2
+	p.P.StartHandshake(StringPeerID{"p2"}, swarmMetadata.ID)
+
+	// Inject a valid starting handshake from p2
+	h := HandshakeMsg{C: cid, S: swarmMetadata.ID}
+	m := Msg{Op: Handshake, Data: h}
+	msgs := []Msg{m}
+	d := &Datagram{ChanID: 0, Msgs: msgs}
+	err := stubNetwork.InjectIncomingDatagram(d, remote)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Error("TODO: p1 should have done what? Check for it here.")
 }
 
 func newStubNetworkPeer(id string) *Peer {
