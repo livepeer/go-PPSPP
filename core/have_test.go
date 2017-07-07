@@ -95,7 +95,9 @@ func setupPeerWithHandshake(t *testing.T, remote PeerID, remoteCID ChanID, sid S
 	// Set up the peer
 	p := newStubNetworkPeer("p1")
 	swarmMetadata := SwarmMetadata{ID: sid, ChunkSize: chunkSize}
-	p.P.AddSwarm(swarmMetadata)
+	if err := p.P.AddSwarm(swarmMetadata); err != nil {
+		t.Fatalf("setupPeerWithHandshake could not add swarm: %v", err)
+	}
 	n := p.n.(*StubNetwork)
 
 	// Call StartHandshake
