@@ -2,7 +2,9 @@
 
 Go implementation of the Peer-to-Peer Streaming Peer Protocol ([rfc7574](https://tools.ietf.org/html/rfc7574))
 
-This protocol serves as a transport layer for video live streaming.  It is format-agnostic (can be used to transport any video format), and network protocol-agnostic (should be able to talk to any network protocol like tcp, udp, webrtc, etc)
+This protocol serves as a transport layer for video live streaming.  It is format-agnostic (can be used to transport any video format), and network protocol-agnostic (should be able to talk to any network protocol like tcp, udp, webrtc, etc).
+
+This go implementation is intended to be used as a library for go projects that want to use PPSPP for live video streaming.
 
 ### Installation
 
@@ -26,7 +28,7 @@ More examples are on the way, and examples will likely change significantly as t
 
 ### Credits
 
-This project was created and maintained by [Livepeer](https://livepeer.org) and others. See the complete list of [contributors](https://github.com/livepeer/go-PPSPP/contributors).
+This project was created and is maintained by [Livepeer](https://livepeer.org) and others. See the complete list of [contributors](https://github.com/livepeer/go-PPSPP/contributors).
 
 ### License
 
