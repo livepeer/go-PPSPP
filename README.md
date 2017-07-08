@@ -26,7 +26,7 @@ More examples are on the way, and examples will likely change significantly as t
 
 ### Credits
 
-This project was created and maintained by [Livepeer](https://livepeer.org) and others. See the complete list of [contributors](graphs/contributors).
+This project was created and maintained by [Livepeer](https://livepeer.org) and others. See the complete list of [contributors](https://github.com/livepeer/go-PPSPP/contributors).
 
 ### License
 
