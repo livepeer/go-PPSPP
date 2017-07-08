@@ -16,15 +16,11 @@ Import the core package into your go project:
 
 `import "github.com/livepeer/go-PPSPP/core"`
 
-Take a look at [simple.go](examples/simple/simple.go) for an example of how to use go-PPSPP.
-
-You can run the simple example like this:
+Take a look at [simple.go](examples/simple/simple.go) for an example of how to use go-PPSPP. You can run the simple example like this:
 
 `go run examples/simple/simple.go`
 
 You should see a lot of logger spew and then it should terminate without error.
-
-More examples are on the way, and examples will likely change significantly as the interfaces are still a work in progress.
 
 ### Contributing
 
