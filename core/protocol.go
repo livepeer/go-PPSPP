@@ -16,7 +16,7 @@ type Protocol interface {
 	StartHandshake(remote PeerID, sid SwarmID) error
 	SendClosingHandshake(remote PeerID, sid SwarmID) error
 	ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error)
-	AddSwarm(metadata SwarmMetadata)
+	AddSwarm(metadata SwarmMetadata) error
 	Swarm(id SwarmID) (*Swarm, error)
 	AddLocalChunk(sid SwarmID, cid ChunkID, b []byte) error
 	SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error
@@ -177,8 +177,13 @@ func (p *Ppspp) sendDatagram(d Datagram, c ChanID) error {
 }
 
 // AddSwarm adds a swarm with a given ID
-func (p *Ppspp) AddSwarm(metadata SwarmMetadata) {
+func (p *Ppspp) AddSwarm(metadata SwarmMetadata) error {
+	_, ok := p.swarms[metadata.ID]
+	if ok {
+		return fmt.Errorf("swarm already exists at ID=%d", metadata.ID)
+	}
 	p.swarms[metadata.ID] = NewSwarm(metadata)
+	return nil
 }
 
 // Swarm returns the swarm at the given id
@@ -335,8 +340,8 @@ func (p *StubProtocol) ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, er
 }
 
 // AddSwarm is a noop for StubProtocol
-func (p *StubProtocol) AddSwarm(metadata SwarmMetadata) {
-
+func (p *StubProtocol) AddSwarm(metadata SwarmMetadata) error {
+	return nil
 }
 
 // Swarm is a noop for StubProtocol
