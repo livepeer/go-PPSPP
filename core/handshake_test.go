@@ -55,6 +55,8 @@ func TestHandleHandshake(t *testing.T) {
 		t.Fatal("StubNetwork type assertion failed")
 	}
 	cid := ChanID(4)
+	swarmMetadata := SwarmMetadata{ID: sid, ChunkSize: 8}
+	p.P.AddSwarm(swarmMetadata)
 
 	// Inject a starting handshake
 	h := HandshakeMsg{C: cid, S: sid}
@@ -123,7 +125,8 @@ func TestHandshakeRace(t *testing.T) {
 	cid := ChanID(4)
 
 	// Set up a swarm
-	swarmMetadata := SwarmMetadata{ID: SwarmID(8), ChunkSize: 8}
+	sid := SwarmID(8)
+	swarmMetadata := SwarmMetadata{ID: sid, ChunkSize: 8}
 	p.P.AddSwarm(swarmMetadata)
 
 	// Start handshake with p2
@@ -139,13 +142,13 @@ func TestHandshakeRace(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Error("TODO: p1 should have done what? Check for it here.")
-}
-
-func newStubNetworkPeer(id string) *Peer {
-	p := NewPpspp()
-
-	n := NewStubNetwork(id)
-
-	return NewPeer(n, p)
+	// p1 should interpret the starting handshake from p2 as a reply, so it
+	// should now be in the Ready state
+	ok, err = checkState(sid, p, remote, Ready)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Errorf("p1 not in ready state after handshake")
+	}
 }

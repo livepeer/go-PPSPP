@@ -270,6 +270,19 @@ func (p *Ppspp) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolS
 	return nil
 }
 
+// chanIDForSwarmAndPeer is a convenience function to return the channel in the swarm for the given peer
+func (p *Ppspp) chanIDForSwarmAndPeer(sid SwarmID, pid PeerID) (ChanID, bool) {
+	// Check if we already have a channel for this remote peer in the swarm
+	sw, ok := p.swarms[sid]
+	if ok {
+		cid, ok := sw.chans[pid]
+		if ok {
+			return cid, true
+		}
+	}
+	return ChanID(0), false
+}
+
 func (p *Ppspp) randomUnusedChanID() ChanID {
 	// FIXME: seed should be based on time.now or something, but maybe
 	// deterministic in some test/debug mode

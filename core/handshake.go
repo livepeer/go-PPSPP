@@ -37,17 +37,20 @@ func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 		if h.C < 1 {
 			return MsgError{c: cid, m: m, info: "handshake cannot request channel ID 0"}
 		}
+
+		// Check if we already have a channel for this remote peer in the swarm
+		cid, ok = p.chanIDForSwarmAndPeer(h.S, remote)
+		if ok {
+			c := p.chans[cid]
+			// if a channel already exists, and we're expecting a reply handshake, then we assume the remote
+			// peer sent a handshake request before it received our request. Treat it as a reply.
+			if c.state == WaitHandshake {
+				return p.handleReplyHandshake(h, cid)
+			}
+			return fmt.Errorf("handshake error: received handshake request but a channel already exists for the remote peer")
+		}
 		// need to create a new channel
 		newCID := p.chooseOutChan()
-		// Check if we already have a channel for this remote peer in the swarm
-		sw, ok := p.swarms[h.S]
-		if ok {
-			cid, ok := sw.chans[remote]
-			if ok {
-				// TODO: Need to figure out how to handle this case. See TestHandshakeRace in handshake_test.go
-				return fmt.Errorf("handleHandshake error: channel %d already exists for %v, don't know what to do", cid, remote)
-			}
-		}
 		if err := p.addChan(newCID, h.S, h.C, Ready, remote); err != nil {
 			return err
 		}
@@ -59,16 +62,7 @@ func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 		case Begin:
 			return MsgError{c: cid, m: m, info: "starting handshake must use channel ID 0"}
 		case WaitHandshake:
-			c := p.chans[cid]
-			glog.Info("in waitHandshake state")
-			if h.C == 0 {
-				glog.Info("received closing handshake")
-				p.closeChannel(cid)
-			} else {
-				c.theirs = h.C
-				glog.Infof("moving to ready state")
-				c.state = Ready
-			}
+			return p.handleReplyHandshake(h, cid)
 		case Ready:
 			glog.Info("in ready state")
 			if h.C == 0 {
@@ -123,4 +117,22 @@ func (p *Ppspp) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
 func (p *Ppspp) chooseOutChan() ChanID {
 	// FIXME: see Issue #10
 	return p.randomUnusedChanID()
+}
+
+func (p *Ppspp) handleReplyHandshake(h HandshakeMsg, cid ChanID) error {
+	c, ok := p.chans[cid]
+	if !ok {
+		return fmt.Errorf("handleReplyHandshake error: could not find channel")
+	}
+	glog.Info("in waitHandshake state")
+	if h.C == 0 {
+		glog.Info("received closing handshake")
+		p.closeChannel(cid)
+	} else {
+		c.theirs = h.C
+		glog.Infof("moving to ready state")
+		c.state = Ready
+	}
+
+	return nil
 }
