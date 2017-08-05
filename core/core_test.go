@@ -8,21 +8,89 @@ import (
 
 	"github.com/golang/glog"
 
+	"fmt"
+
 	"github.com/livepeer/go-PPSPP/core"
 )
 
 func TestSwarm(t *testing.T) {
-	t.Fatal("TODO")
-	// Setup N peers, each with some random subset of a buffer
-	// somehow make sure that all bytes are somewhere
+	flag.Lookup("logtostderr").Value.Set("true")
 
-	// Magic bootstrap the peer connections so they are completely connected
+	rand.Seed(394859)
 
-	// Randomly start some handshakes
+	// Create random reference data
+	numChunks := 10
+	const chunkSize int = 16
+	reference := make(map[core.ChunkID]([]byte), numChunks)
+	for i := 0; i < numChunks; i++ {
+		cid := core.ChunkID(i)
+		chunk := make([]byte, chunkSize)
+		rand.Read(chunk)
+		reference[cid] = chunk
+	}
 
-	// Wait for data to flow around
+	// Set up peers
+	numPeers := 3
+	swarmMetadata := core.SwarmMetadata{ID: core.SwarmID(8), ChunkSize: chunkSize}
+	sid := swarmMetadata.ID
+	peers, err := setupPeerSwarm(numPeers, 12994, swarmMetadata)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	// Check that all the peers have all the data
+	// Add each chunk locally to a random peer
+	for i := 0; i < numChunks; i++ {
+		pid := rand.Intn(numPeers)
+		cid := core.ChunkID(i)
+		if err := peers[pid].P.AddLocalChunk(sid, cid, reference[cid]); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// A consumer peer handshakes with all other peers
+	consumer := peers[rand.Intn(numPeers)]
+	for _, remote := range peers {
+		if consumer != remote {
+			if err := consumer.P.StartHandshake(remote.ID(), swarmMetadata.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	// Wait
+	time.Sleep(2 * time.Second)
+
+	// All non-consumer peers send have messages to the consumer
+	for _, remote := range peers {
+		fmt.Println(remote.ID())
+		if remote != consumer {
+			sw, err := remote.P.Swarm(sid)
+			if err != nil {
+				t.Fatalf("%v could not find %v: %v", consumer.ID(), sid, err)
+			}
+			for cid, _ := range sw.LocalChunks() {
+				if err := remote.P.SendHave(cid, cid, consumer.ID(), sid); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+
+	// Wait for consumer to request the chunks and receive data
+	time.Sleep(10 * time.Second)
+
+	// Check that the consumer has all the reference data
+	sw, err := consumer.P.Swarm(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok, err := swarmHasChunks(sw, reference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Error("consumer does not have all data")
+	}
 }
 
 // TestNetworkHandshake tests a handshake between two peers on two different ports
@@ -78,7 +146,7 @@ func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*
 	if err != nil {
 		t.Fatal(err)
 	}
-	peerExchangeIDAddr(p1, p2)
+	twoPeerExchangeIDAddr(p1, p2)
 	p1.P.AddSwarm(metadata)
 	p2.P.AddSwarm(metadata)
 	err1 := p1.Connect(p2.ID())
@@ -90,6 +158,39 @@ func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*
 		t.Fatalf("%v could not connect to %v: %v", p2.ID(), p1.ID(), err2)
 	}
 	return p1, p2
+}
+
+func setupPeerSwarm(numPeers int, seed int64, metadata core.SwarmMetadata) ([]*core.Peer, error) {
+	rand.Seed(seed)
+	startPort := rand.Intn(100) + 10000
+
+	peers := make([]*core.Peer, numPeers)
+
+	for i := 0; i < numPeers; i++ {
+		p, err := core.NewLibp2pPeer(startPort+i, core.NewPpspp())
+		if err != nil {
+			return nil, err
+		}
+		peers[i] = p
+	}
+
+	peerExchangeIDAddr(peers)
+
+	for _, p := range peers {
+		p.P.AddSwarm(metadata)
+	}
+
+	for _, p1 := range peers {
+		for _, p2 := range peers {
+			if p1 != p2 {
+				if err := p1.Connect(p2.ID()); err != nil {
+					return nil, fmt.Errorf("%v could not connect to %v: %v", p1.ID(), p2.ID(), err)
+				}
+			}
+		}
+	}
+
+	return peers, nil
 }
 
 func startNetworkHandshake(t *testing.T, p *core.Peer, remote core.PeerID, swarmMetadata core.SwarmMetadata, done chan bool) {
@@ -136,11 +237,22 @@ func waitCloseNetworkHandshake(t *testing.T, p *core.Peer, remote core.PeerID, s
 }
 
 // magic exchange of peer IDs and addrs
-func peerExchangeIDAddr(p1 *core.Peer, p2 *core.Peer) {
+func twoPeerExchangeIDAddr(p1 *core.Peer, p2 *core.Peer) {
 	addrs1 := p1.Addrs()
 	addrs2 := p2.Addrs()
 	p1.AddAddrs(p2.ID(), addrs2)
 	p2.AddAddrs(p1.ID(), addrs1)
+}
+
+// magic exchange of peer IDs and addrs
+func peerExchangeIDAddr(peers []*core.Peer) {
+	for _, p1 := range peers {
+		for _, p2 := range peers {
+			if p1 != p2 {
+				p1.AddAddrs(p2.ID(), p2.Addrs())
+			}
+		}
+	}
 }
 
 // checkState checks that the peer's ProtocolState is equal to state for swarm sid for the remote peer
@@ -241,4 +353,21 @@ func sendHaves(t *testing.T, ref map[core.ChunkID]string, s core.SwarmID, p *cor
 	if err2 != nil {
 		t.Fatalf("sendHaves error: %v", err2)
 	}
+}
+
+func swarmHasChunks(swarm *core.Swarm, reference map[core.ChunkID]([]byte)) (bool, error) {
+	content, err := swarm.DataFromLocalChunks(0, core.ChunkID(len(reference)-1))
+	if err != nil {
+		return false, err
+	}
+	for i := 0; i < len(reference); i++ {
+		for j := 0; j < swarm.ChunkSize(); j++ {
+			bref := []byte(reference[core.ChunkID(i)])[j]
+			bcontent := content[(i*swarm.ChunkSize())+j]
+			if bref != bcontent {
+				return false, nil
+			}
+		}
+	}
+	return true, nil
 }
