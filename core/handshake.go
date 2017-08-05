@@ -2,6 +2,8 @@ package core
 
 import (
 	"fmt"
+
+	"github.com/golang/glog"
 )
 
 // HandshakeMsg holds a handshake message data payload
@@ -17,7 +19,7 @@ func (p *Ppspp) StartHandshake(remote PeerID, sid SwarmID) error {
 	p.lock()
 	defer p.unlock()
 
-	p.infof(1, "starting handshake with %v", remote)
+	glog.V(1).Infof("%v starting handshake with %v", p.id, remote)
 
 	ours := p.chooseOutChan()
 	// their channel is 0 until they reply with a handshake
@@ -27,7 +29,7 @@ func (p *Ppspp) StartHandshake(remote PeerID, sid SwarmID) error {
 }
 
 func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
-	p.infof(1, "handling handshake from %v", remote)
+	glog.V(1).Infof("%v handling handshake from %v", p.id, remote)
 	h, ok := m.Data.(HandshakeMsg)
 	if !ok {
 		return MsgError{c: cid, m: m, info: "could not convert to Handshake"}
@@ -55,7 +57,7 @@ func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 		if err := p.addChan(newCID, h.S, h.C, Ready, remote); err != nil {
 			return err
 		}
-		p.infof(3, "moving to ready state")
+		glog.V(3).Infof("%v moving to ready state", p.id)
 		p.sendReplyHandshake(newCID, h.C, h.S)
 	} else {
 		c := p.chans[cid]
@@ -65,9 +67,9 @@ func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 		case WaitHandshake:
 			return p.handleReplyHandshake(h, cid)
 		case Ready:
-			p.info(3, "in ready state")
+			glog.V(3).Infof("%v in ready state", p.id)
 			if h.C == 0 {
-				p.info(3, "received closing handshake")
+				glog.V(3).Infof("%v received closing handshake", p.id)
 				p.closeChannel(cid)
 			} else {
 				return MsgError{c: cid, m: m, info: "got non-closing handshake while in ready state"}
@@ -80,12 +82,12 @@ func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 }
 
 func (p *Ppspp) sendReqHandshake(ours ChanID, sid SwarmID) error {
-	p.infof(3, "sending request handshake")
+	glog.V(3).Infof("%v sending request handshake", p.id)
 	return p.sendHandshake(ours, 0, sid)
 }
 
 func (p *Ppspp) sendReplyHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
-	p.infof(3, "sending reply handshake ours=%v, theirs=%v", ours, theirs)
+	glog.V(3).Infof("%v sending reply handshake ours=%v, theirs=%v", p.id, ours, theirs)
 	return p.sendHandshake(ours, theirs, sid)
 }
 
@@ -97,12 +99,12 @@ func (p *Ppspp) SendClosingHandshake(remote PeerID, sid SwarmID) error {
 	// get chanID from PeerID and SwarmID
 	c := p.swarms[sid].chans[remote]
 
-	p.infof(3, "sending closing handshake on sid=%v c=%v to %v", sid, c, remote)
+	glog.V(3).Infof("%v sending closing handshake on sid=%v c=%v to %v", p.id, sid, c, remote)
 	// handshake with c=0 will signal a close handshake
 	h := HandshakeMsg{C: 0, S: sid}
 	m := Msg{Op: Handshake, Data: h}
 	d := Datagram{ChanID: p.chans[c].theirs, Msgs: []Msg{m}}
-	p.infof(3, "sending datagram for closing handshake")
+	glog.V(3).Infof("%v sending datagram for closing handshake", p.id)
 	err := p.sendDatagram(d, c)
 	if err != nil {
 		return fmt.Errorf("sendClosingHandshake: %v", err)
@@ -111,7 +113,7 @@ func (p *Ppspp) SendClosingHandshake(remote PeerID, sid SwarmID) error {
 }
 
 func (p *Ppspp) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
-	p.infof(3, "sending handshake ours=%v, theirs=%v", ours, theirs)
+	glog.V(3).Infof("%v sending handshake ours=%v, theirs=%v", p.id, ours, theirs)
 	h := HandshakeMsg{C: ours, S: sid}
 	m := Msg{Op: Handshake, Data: h}
 	d := Datagram{ChanID: theirs, Msgs: []Msg{m}}
@@ -128,13 +130,13 @@ func (p *Ppspp) handleReplyHandshake(h HandshakeMsg, cid ChanID) error {
 	if !ok {
 		return fmt.Errorf("handleReplyHandshake error: could not find channel")
 	}
-	p.info(3, "in waitHandshake state")
+	glog.V(3).Infof("%v in waitHandshake state", p.id)
 	if h.C == 0 {
-		p.info(3, "received closing handshake")
+		glog.V(3).Infof("%v received closing handshake", p.id)
 		p.closeChannel(cid)
 	} else {
 		c.theirs = h.C
-		p.infof(3, "moving to ready state")
+		glog.V(3).Infof("%v moving to ready state", p.id)
 		c.state = Ready
 	}
 

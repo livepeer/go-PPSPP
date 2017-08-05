@@ -93,13 +93,13 @@ func (p *Peer) Addrs() []ma.Multiaddr {
 
 // Connect creates a stream from p to the peer at id and sets a stream handler
 func (p *Peer) Connect(id PeerID) error {
-	glog.Infof("%s: Connecting to %s", p.ID(), id)
+	glog.V(1).Infof("%v Connect to %s", p.ID(), id)
 	return p.n.Connect(id)
 }
 
 // Disconnect closes the stream that p is using to connect to the peer at id
 func (p *Peer) Disconnect(id PeerID) error {
-	glog.Infof("%s: Disconnecting from %s", p.ID(), id)
+	glog.V(1).Infof("%v Disconnect from %s", p.ID(), id)
 	return p.n.Disconnect(id)
 }
 

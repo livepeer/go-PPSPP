@@ -28,6 +28,9 @@ type Swarm struct {
 	// chunkstore tracks the chunks that are locally stored for this swarm
 	localChunks map[ChunkID]*Chunk
 
+	// map of outstanding requests (true if request outstanding, false otherwise)
+	requests map[ChunkID]bool
+
 	// haves maps ChunkID to a list of peers that have that chunk (peers tracked by peer ID)
 	remoteHaves map[ChunkID]*list.List
 
@@ -42,7 +45,9 @@ func NewSwarm(metadata SwarmMetadata) *Swarm {
 
 	remoteHaves := make(map[ChunkID]*list.List)
 
-	return &Swarm{chans: chans, localChunks: localChunks, remoteHaves: remoteHaves, metadata: metadata}
+	requests := make(map[ChunkID]bool)
+
+	return &Swarm{chans: chans, localChunks: localChunks, remoteHaves: remoteHaves, metadata: metadata, requests: requests}
 }
 
 // AddRemoteHave tells this Swarm that the remote peer p has ChunkID c
@@ -52,6 +57,25 @@ func (s *Swarm) AddRemoteHave(c ChunkID, p PeerID) {
 		s.remoteHaves[c] = list.New()
 	}
 	s.remoteHaves[c].PushFront(p)
+}
+
+func (s *Swarm) AddRequest(c ChunkID) error {
+	_, ok := s.requests[c]
+	if ok {
+		return fmt.Errorf("AddRequest adding request but one already exists")
+	}
+	s.requests[c] = true
+	return nil
+}
+
+func (s *Swarm) RemoveRequest(c ChunkID) error {
+	_, ok := s.requests[c]
+	if !ok {
+		return fmt.Errorf("RemoveRequest removing request but none exists")
+	}
+	// TODO: better to delete key?
+	s.requests[c] = false
+	return nil
 }
 
 // checkChunk returns whether the chunk has any errors (e.g. wrong size)
@@ -99,9 +123,10 @@ func (s *Swarm) LocalChunks() map[ChunkID]*Chunk {
 
 // WantChunk returns whether this Swarm wants the chunk locally
 func (s *Swarm) WantChunk(id ChunkID) bool {
-	// Simple implementation for now... if it's not in localChunks, we want it.
+	// Simple implementation for now... if it's not in localChunks, and we don't have an outstanding request,
+	// we want it.
 	_, ok := s.localChunks[id]
-	return !ok
+	return (!ok && !s.requests[id])
 }
 
 // DataFromLocalChunks returns the data from the chunk range, packed into a single array

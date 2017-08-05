@@ -15,13 +15,13 @@ import (
 
 // TestSwarm creates a swarm of peers, distributes some reference data randomly amonst them, and then
 // tests that one of the peers (the consumer) can request and receive all of the data.
+//
+// TODO: parameterize this so we can create a bunch of versions across numChunks and numPeers
 func TestSwarm(t *testing.T) {
-	//flag.Lookup("logtostderr").Value.Set("true")
-
 	rand.Seed(394859)
 
 	// Create random reference data
-	numChunks := 10
+	numChunks := 5
 	const chunkSize int = 16
 	reference := make(map[core.ChunkID]([]byte), numChunks)
 	for i := 0; i < numChunks; i++ {
@@ -63,15 +63,14 @@ func TestSwarm(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// All non-consumer peers send have messages to the consumer
-	for _, remote := range peers {
-		fmt.Println(remote.ID())
-		if remote != consumer {
-			sw, err := remote.P.Swarm(sid)
+	for _, producer := range peers {
+		if producer != consumer {
+			sw, err := producer.P.Swarm(sid)
 			if err != nil {
 				t.Fatalf("%v could not find %v: %v", consumer.ID(), sid, err)
 			}
 			for cid, _ := range sw.LocalChunks() {
-				if err := remote.P.SendHave(cid, cid, consumer.ID(), sid); err != nil {
+				if err := producer.P.SendHave(cid, cid, consumer.ID(), sid); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -79,7 +78,7 @@ func TestSwarm(t *testing.T) {
 	}
 
 	// Wait for consumer to request the chunks and receive data
-	time.Sleep(10 * time.Second)
+	time.Sleep(4 * time.Second)
 
 	// Check that the consumer has all of the reference data
 	sw, err := consumer.P.Swarm(sid)

@@ -1,7 +1,10 @@
 package core
 
-import "github.com/golang/glog"
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/golang/glog"
+)
 
 // HaveMsg holds a have message data payload
 type HaveMsg struct {
@@ -14,35 +17,34 @@ type HaveMsg struct {
 
 // SendHave sends a have message for the chunk range to the remote peer on the Swarm
 func (p *Ppspp) SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
-	glog.Infof("SendHave Chunks %d-%d, to %v, on %v", start, end, remote, sid)
-
 	p.lock()
 	defer p.unlock()
 
 	return p.sendHave(start, end, remote, sid)
 }
 func (p *Ppspp) sendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
-	glog.Infof("sendHave Chunks %d-%d, to %v, on %v", start, end, remote, sid)
+	glog.V(1).Infof("%v sendHave Chunks %d-%d, to %v, on %v", p.id, start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]
 	if !ok1 {
-		return fmt.Errorf("SendHave could not find %v", sid)
+		return fmt.Errorf("sendHave could not find %v", sid)
 	}
 	ours, ok2 := swarm.chans[remote]
 	if !ok2 {
-		return fmt.Errorf("SendHave could not find channel for %v on %v", remote, sid)
+		return fmt.Errorf("sendHave could not find channel for %v on %v", remote, sid)
 	}
 	c, ok3 := p.chans[ours]
 	if !ok3 {
-		return fmt.Errorf("SendHave could not find channel %v", ours)
+		return fmt.Errorf("sendHave could not find channel %v", ours)
 	}
 	h := HaveMsg{Start: start, End: end}
 	m := Msg{Op: Have, Data: h}
 	d := Datagram{ChanID: c.theirs, Msgs: []Msg{m}}
+	glog.V(3).Infof("%v sendHave ChanID=%d", p.id, c.theirs)
 	return p.sendDatagram(d, ours)
 }
 
 func (p *Ppspp) handleHave(cid ChanID, m Msg, remote PeerID) error {
-	glog.Infof("handleHave from %v", remote)
+	glog.V(3).Infof("%v handleHave from %v", p.id, remote)
 	c, ok1 := p.chans[cid]
 	if !ok1 {
 		return fmt.Errorf("handleHave could not find chan %v", cid)
@@ -56,7 +58,7 @@ func (p *Ppspp) handleHave(cid ChanID, m Msg, remote PeerID) error {
 	if !ok3 {
 		return MsgError{c: cid, m: m, info: "could not convert to Have"}
 	}
-
+	glog.V(3).Infof("%v handleHave %d-%d from %v", p.id, h.Start, h.End, remote)
 	return p.requestWantedChunksInRange(h.Start, h.End, remote, sid, s)
 }
 

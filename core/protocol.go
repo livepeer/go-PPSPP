@@ -177,10 +177,11 @@ func NewPpspp(id PeerID) *Ppspp {
 
 // HandleDatagram handles an incoming datagram from a remote peer with the given id
 func (p *Ppspp) HandleDatagram(d *Datagram, id PeerID) error {
+	glog.V(1).Infof("%v HandleDatagram datagram from %v: %v\n", p.id, id, d)
 	p.lock()
 	defer p.unlock()
 
-	glog.Infof("handling datagram from %v: %v\n", id, d)
+	glog.V(3).Infof("%v handling datagram from %v: %v\n", p.id, id, d)
 	if len(d.Msgs) == 0 {
 		return errors.New("no messages in datagram")
 	}
@@ -212,6 +213,7 @@ func (p *Ppspp) sendDatagram(d Datagram, c ChanID) error {
 		return fmt.Errorf("could not find channel %v", c)
 	}
 	remote := p.chans[c].remote
+	glog.V(3).Infof("%v sendDatagram %v to %v", p.id, d, remote)
 	return p.datagramSender(d, remote)
 }
 
@@ -251,7 +253,7 @@ func (p *Ppspp) handleMsg(c ChanID, m Msg, remote PeerID) error {
 }
 
 func (p *Ppspp) closeChannel(c ChanID) error {
-	glog.Info("closing channel")
+	glog.V(3).Infof("%v closing channel", p.id)
 	delete(p.chans, c)
 	return nil
 }
@@ -293,7 +295,7 @@ func (p *Ppspp) AddLocalChunk(sid SwarmID, cid ChunkID, b []byte) error {
 
 // addChan adds a channel at the key ours
 func (p *Ppspp) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolState, remote PeerID) error {
-	glog.Infof("addChan ours=%v, sid=%v, theirs=%v, state=%v, remote=%v", ours, sid, theirs, state, remote)
+	glog.V(3).Infof("%v addChan ours=%v, sid=%v, theirs=%v, state=%v, remote=%v", p.id, ours, sid, theirs, state, remote)
 
 	if ours < 1 {
 		return errors.New("cannot setup channel with ours<1")
@@ -307,7 +309,7 @@ func (p *Ppspp) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolS
 	p.chans[ours] = &Chan{sw: sid, theirs: theirs, state: state, remote: remote}
 
 	// add the channel to the swarm-level map
-	glog.Infof("adding channel %v to %v for %v", ours, sid, remote)
+	glog.V(3).Infof("%v adding channel %v to %v for %v", p.id, ours, sid, remote)
 	sw, ok := p.swarms[sid]
 	if !ok {
 		return fmt.Errorf("no swarm exists at sid=%d", sid)
@@ -355,23 +357,6 @@ func (p *Ppspp) randomUnusedChanID() ChanID {
 		}
 	}
 }
-
-// Info is wraps glog.Verbose Info to add Ppspp-specific info to the message
-func (p *Ppspp) info(level glog.Level, args ...interface{}) {
-	format := fmt.Sprintf("%v: %s", p.id, args)
-	glog.V(level).Infof(format, args)
-}
-
-// Infof is wraps glog.Verbose Infof to add Ppspp-specific info to the message
-func (p *Ppspp) infof(level glog.Level, format string, args ...interface{}) {
-	format2 := fmt.Sprintf("%v: %s", p.id, format)
-	glog.V(level).Infof(format2, args)
-}
-
-// // V wraps glog's
-// func V(level glog.Level) glog.Verbose {
-// 	return glog.V(level)
-// }
 
 // StubProtocol handles incoming datagrams by storing them
 type StubProtocol struct {

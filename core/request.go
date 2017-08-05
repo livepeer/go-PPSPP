@@ -1,7 +1,10 @@
 package core
 
-import "github.com/golang/glog"
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/golang/glog"
+)
 
 // RequestMsg holds a have message data payload
 type RequestMsg struct {
@@ -19,7 +22,7 @@ func (p *Ppspp) SendRequest(start ChunkID, end ChunkID, remote PeerID, sid Swarm
 }
 
 func (p *Ppspp) sendRequest(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
-	glog.Infof("sendRequest Chunk %v-%v, to %v, on %v", start, end, remote, sid)
+	glog.V(1).Infof("%v: sendRequest Chunk %v-%v, to %v, on %v", p.id, start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]
 	if !ok1 {
 		return fmt.Errorf("SendRequest could not find %v", sid)
@@ -32,6 +35,11 @@ func (p *Ppspp) sendRequest(start ChunkID, end ChunkID, remote PeerID, sid Swarm
 	if !ok3 {
 		return fmt.Errorf("SendRequest could not find channel %v", ours)
 	}
+	for i := start; i <= end; i++ {
+		if err := swarm.AddRequest(i); err != nil {
+			return err
+		}
+	}
 	h := RequestMsg{Start: start, End: end}
 	m := Msg{Op: Request, Data: h}
 	d := Datagram{ChanID: c.theirs, Msgs: []Msg{m}}
@@ -39,7 +47,7 @@ func (p *Ppspp) sendRequest(start ChunkID, end ChunkID, remote PeerID, sid Swarm
 }
 
 func (p *Ppspp) handleRequest(cid ChanID, m Msg, remote PeerID) error {
-	glog.Infof("handleRequest from %v", remote)
+	glog.V(3).Infof("%v: handleRequest from %v", p.id, remote)
 	c, ok1 := p.chans[cid]
 	if !ok1 {
 		return fmt.Errorf("handleRequest could not find chan %v", cid)
@@ -53,7 +61,7 @@ func (p *Ppspp) handleRequest(cid ChanID, m Msg, remote PeerID) error {
 	if !ok3 {
 		return MsgError{c: cid, m: m, info: "could not convert to RequestMsg"}
 	}
-	glog.Infof("%v requested chunk %v-%v on %v", remote, r.Start, r.End, sid)
+	glog.V(3).Infof("%v handleRequest: %v requested chunk %v-%v on %v", p.id, remote, r.Start, r.End, sid)
 	return p.sendLocalChunksInRange(r.Start, r.End, remote, sid, swarm)
 }
 
@@ -73,7 +81,7 @@ func (p *Ppspp) sendLocalChunksInRange(start ChunkID, end ChunkID, remote PeerID
 		} else {
 			if haveRange {
 				haveRange = false
-				err := p.SendData(startRange, endRange, remote, sid)
+				err := p.sendData(startRange, endRange, remote, sid)
 				if err != nil {
 					return err
 				}
@@ -82,7 +90,7 @@ func (p *Ppspp) sendLocalChunksInRange(start ChunkID, end ChunkID, remote PeerID
 	}
 	// If we left the for loop in a haveRange, send the request for it
 	if haveRange {
-		err := p.SendData(startRange, endRange, remote, sid)
+		err := p.sendData(startRange, endRange, remote, sid)
 		if err != nil {
 			return err
 		}
