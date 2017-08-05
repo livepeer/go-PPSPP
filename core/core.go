@@ -60,7 +60,20 @@ func NewLibp2pPeer(port int, p Protocol) (*Peer, error) {
 
 // NewPpsppPeer makes a new peer with a ppspp protocol
 func NewPpsppPeer(n Network) (*Peer, error) {
-	return NewPeer(n, NewPpspp()), nil
+	return NewPeer(n, NewPpspp(n.ID())), nil
+}
+
+// NewLibp2pPpsppPeer makes a new peer with a libp2p network and Ppspp protocol
+func NewLibp2pPpsppPeer(port int) (*Peer, error) {
+	// This determines the network implementation (libp2p)
+	n, err := newLibp2pNetwork(port)
+	if err != nil {
+		return nil, err
+	}
+
+	p := NewPpspp(n.ID())
+
+	return NewPeer(n, p), nil
 }
 
 // ID returns the peer ID

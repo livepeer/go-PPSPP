@@ -13,8 +13,10 @@ import (
 	"github.com/livepeer/go-PPSPP/core"
 )
 
+// TestSwarm creates a swarm of peers, distributes some reference data randomly amonst them, and then
+// tests that one of the peers (the consumer) can request and receive all of the data.
 func TestSwarm(t *testing.T) {
-	flag.Lookup("logtostderr").Value.Set("true")
+	//flag.Lookup("logtostderr").Value.Set("true")
 
 	rand.Seed(394859)
 
@@ -79,7 +81,7 @@ func TestSwarm(t *testing.T) {
 	// Wait for consumer to request the chunks and receive data
 	time.Sleep(10 * time.Second)
 
-	// Check that the consumer has all the reference data
+	// Check that the consumer has all of the reference data
 	sw, err := consumer.P.Swarm(sid)
 	if err != nil {
 		t.Fatal(err)
@@ -138,11 +140,11 @@ func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*
 	rand.Seed(seed)
 	port1 := rand.Intn(100) + 10000
 	port2 := port1 + 1
-	p1, err := core.NewLibp2pPeer(port1, core.NewPpspp())
+	p1, err := core.NewLibp2pPpsppPeer(port1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p2, err := core.NewLibp2pPeer(port2, core.NewPpspp())
+	p2, err := core.NewLibp2pPpsppPeer(port2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +169,7 @@ func setupPeerSwarm(numPeers int, seed int64, metadata core.SwarmMetadata) ([]*c
 	peers := make([]*core.Peer, numPeers)
 
 	for i := 0; i < numPeers; i++ {
-		p, err := core.NewLibp2pPeer(startPort+i, core.NewPpspp())
+		p, err := core.NewLibp2pPpsppPeer(startPort + i)
 		if err != nil {
 			return nil, err
 		}

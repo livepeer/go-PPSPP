@@ -104,7 +104,7 @@ func (s *Swarm) WantChunk(id ChunkID) bool {
 	return !ok
 }
 
-// DataFromLocalChunks returns packs the data from the chunk range into a single array
+// DataFromLocalChunks returns the data from the chunk range, packed into a single array
 func (s *Swarm) DataFromLocalChunks(start ChunkID, end ChunkID) ([]byte, error) {
 	chunkSize := s.metadata.ChunkSize
 	n := int(end) - int(start) + 1

@@ -2,8 +2,6 @@ package core
 
 import (
 	"fmt"
-
-	"github.com/golang/glog"
 )
 
 // HandshakeMsg holds a handshake message data payload
@@ -16,7 +14,10 @@ type HandshakeMsg struct {
 
 // StartHandshake sends a starting handshake message to the remote peer on swarm sid
 func (p *Ppspp) StartHandshake(remote PeerID, sid SwarmID) error {
-	glog.Infof("starting handshake with %v", remote)
+	p.lock()
+	defer p.unlock()
+
+	p.infof(1, "starting handshake with %v", remote)
 
 	ours := p.chooseOutChan()
 	// their channel is 0 until they reply with a handshake
@@ -26,7 +27,7 @@ func (p *Ppspp) StartHandshake(remote PeerID, sid SwarmID) error {
 }
 
 func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
-	glog.Infof("handling handshake from %v", remote)
+	p.infof(1, "handling handshake from %v", remote)
 	h, ok := m.Data.(HandshakeMsg)
 	if !ok {
 		return MsgError{c: cid, m: m, info: "could not convert to Handshake"}
@@ -54,7 +55,7 @@ func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 		if err := p.addChan(newCID, h.S, h.C, Ready, remote); err != nil {
 			return err
 		}
-		glog.Infof("moving to ready state")
+		p.infof(3, "moving to ready state")
 		p.sendReplyHandshake(newCID, h.C, h.S)
 	} else {
 		c := p.chans[cid]
@@ -64,9 +65,9 @@ func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 		case WaitHandshake:
 			return p.handleReplyHandshake(h, cid)
 		case Ready:
-			glog.Info("in ready state")
+			p.info(3, "in ready state")
 			if h.C == 0 {
-				glog.Info("received closing handshake")
+				p.info(3, "received closing handshake")
 				p.closeChannel(cid)
 			} else {
 				return MsgError{c: cid, m: m, info: "got non-closing handshake while in ready state"}
@@ -79,26 +80,29 @@ func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 }
 
 func (p *Ppspp) sendReqHandshake(ours ChanID, sid SwarmID) error {
-	glog.Infof("sending request handshake")
+	p.infof(3, "sending request handshake")
 	return p.sendHandshake(ours, 0, sid)
 }
 
 func (p *Ppspp) sendReplyHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
-	glog.Infof("sending reply handshake ours=%v, theirs=%v", ours, theirs)
+	p.infof(3, "sending reply handshake ours=%v, theirs=%v", ours, theirs)
 	return p.sendHandshake(ours, theirs, sid)
 }
 
 // SendClosingHandshake sends a closing handshake message to the remote peer on swarm sid
 func (p *Ppspp) SendClosingHandshake(remote PeerID, sid SwarmID) error {
+	p.lock()
+	defer p.unlock()
+
 	// get chanID from PeerID and SwarmID
 	c := p.swarms[sid].chans[remote]
 
-	glog.Infof("sending closing handshake on sid=%v c=%v to %v", sid, c, remote)
+	p.infof(3, "sending closing handshake on sid=%v c=%v to %v", sid, c, remote)
 	// handshake with c=0 will signal a close handshake
 	h := HandshakeMsg{C: 0, S: sid}
 	m := Msg{Op: Handshake, Data: h}
 	d := Datagram{ChanID: p.chans[c].theirs, Msgs: []Msg{m}}
-	glog.Infof("sending datagram for closing handshake")
+	p.infof(3, "sending datagram for closing handshake")
 	err := p.sendDatagram(d, c)
 	if err != nil {
 		return fmt.Errorf("sendClosingHandshake: %v", err)
@@ -107,7 +111,7 @@ func (p *Ppspp) SendClosingHandshake(remote PeerID, sid SwarmID) error {
 }
 
 func (p *Ppspp) sendHandshake(ours ChanID, theirs ChanID, sid SwarmID) error {
-	glog.Infof("sending handshake ours=%v, theirs=%v", ours, theirs)
+	p.infof(3, "sending handshake ours=%v, theirs=%v", ours, theirs)
 	h := HandshakeMsg{C: ours, S: sid}
 	m := Msg{Op: Handshake, Data: h}
 	d := Datagram{ChanID: theirs, Msgs: []Msg{m}}
@@ -124,13 +128,13 @@ func (p *Ppspp) handleReplyHandshake(h HandshakeMsg, cid ChanID) error {
 	if !ok {
 		return fmt.Errorf("handleReplyHandshake error: could not find channel")
 	}
-	glog.Info("in waitHandshake state")
+	p.info(3, "in waitHandshake state")
 	if h.C == 0 {
-		glog.Info("received closing handshake")
+		p.info(3, "received closing handshake")
 		p.closeChannel(cid)
 	} else {
 		c.theirs = h.C
-		glog.Infof("moving to ready state")
+		p.infof(3, "moving to ready state")
 		c.state = Ready
 	}
 

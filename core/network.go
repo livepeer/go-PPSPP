@@ -74,18 +74,18 @@ func (n *libp2pNetwork) Addrs() []ma.Multiaddr {
 }
 
 func (n *libp2pNetwork) SetDatagramHandler(f func(*Datagram, PeerID) error) {
-	glog.Info("setting stream handler")
+	n.info(1, "setting stream handler")
 	n.h.SetStreamHandler(proto, func(s inet.Stream) {
 
 		remote := PeerID(s.Conn().RemotePeer())
-		glog.Infof("%s received a stream from %s", n.ID(), remote)
+		n.infof(3, "received a stream from %s", remote)
 		defer s.Close()
 		ws := WrapStream(s)
 		for {
 			d, err := n.receiveDatagram(ws)
-			glog.Infof("%v recvd Datagram", n.ID())
+			n.info(1, "recvd Datagram")
 			if err == io.EOF {
-				glog.Infof("%v received EOF", n.ID())
+				n.info(2, "received EOF")
 				break
 			}
 			if err != nil {
@@ -95,7 +95,7 @@ func (n *libp2pNetwork) SetDatagramHandler(f func(*Datagram, PeerID) error) {
 				glog.Fatal(err)
 			}
 		}
-		glog.Infof("%v handled stream", n.ID())
+		n.info(3, "handled stream")
 	})
 }
 
@@ -105,14 +105,14 @@ func (n *libp2pNetwork) SendDatagram(d Datagram, id PeerID) error {
 	if !ok {
 		return fmt.Errorf("sendDatagram could not find stream at %v", id)
 	}
-	glog.Infof("sendDatagram sending datagram %v\n", d)
+	n.infof(1, "SendDatagram sending datagram %v\n", d)
 	err2 := ws.enc.Encode(d)
 	if err2 != nil {
 		return fmt.Errorf("send datagram encode error %v", err2)
 	}
 	// Because output is buffered with bufio, we need to flush!
 	err3 := ws.w.Flush()
-	glog.Info("sendDatagram flushed datagram")
+	n.info(3, "sendDatagram flushed datagram")
 	if err3 != nil {
 		return fmt.Errorf("send datagram flush error: %v", err3)
 	}
@@ -143,6 +143,18 @@ func (n *libp2pNetwork) Disconnect(id PeerID) error {
 	return errors.New("disconnect error, no stream to close")
 }
 
+// Info is wraps glog.Verbose Info to add libp2pNetwork-specific info to the message
+func (n *libp2pNetwork) info(level glog.Level, args ...interface{}) {
+	format := fmt.Sprintf("%v: %s", n.ID(), args)
+	glog.V(level).Infof(format, args)
+}
+
+// Infof is wraps glog.Verbose Infof to add libp2pNetwork-specific info to the message
+func (n *libp2pNetwork) infof(level glog.Level, format string, args ...interface{}) {
+	format2 := fmt.Sprintf("%v: %s", n.ID(), format)
+	glog.V(level).Infof(format2, args)
+}
+
 // newBasicHost makes and initializes a basic host
 func newBasicHost(port int) (host.Host, error) {
 	priv, pub, err := crypto.GenerateKeyPair(crypto.RSA, 2048)
@@ -170,13 +182,13 @@ func newBasicHost(port int) (host.Host, error) {
 
 // receiveDatagram reads and decodes a datagram from the stream
 func (n *libp2pNetwork) receiveDatagram(ws *WrappedStream) (*Datagram, error) {
-	glog.Infof("%v receiveDatagram", n.ID())
+	n.infof(1, "%v receiveDatagram", n.ID())
 	if ws == nil {
 		return nil, fmt.Errorf("%v receiveDatagram on nil *WrappedStream", n.ID())
 	}
 	var d Datagram
 	err := ws.dec.Decode(&d)
-	glog.Infof("%v decoded datagram %v", n.ID(), d)
+	n.infof(3, "%v decoded datagram %v", n.ID(), d)
 	if err != nil {
 		return nil, err
 	}

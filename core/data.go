@@ -1,6 +1,5 @@
 package core
 
-import "github.com/golang/glog"
 import "fmt"
 
 // DataMsg holds a data message data payload
@@ -12,7 +11,16 @@ type DataMsg struct {
 
 // SendData sends the chunk range in a data message
 func (p *Ppspp) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
-	glog.Infof("SendData Chunks %d-%d, to %v, on %v", start, end, remote, sid)
+	p.infof(1, "SendData Chunks %d-%d, to %v, on %v", start, end, remote, sid)
+
+	p.lock()
+	defer p.unlock()
+
+	return p.sendData(start, end, remote, sid)
+}
+
+func (p *Ppspp) sendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
+	p.infof(3, "sendData Chunks %d-%d, to %v, on %v", start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]
 	if !ok1 {
 		return fmt.Errorf("SendData could not find %v", sid)
@@ -36,7 +44,7 @@ func (p *Ppspp) SendData(start ChunkID, end ChunkID, remote PeerID, sid SwarmID)
 }
 
 func (p *Ppspp) handleData(cid ChanID, m Msg, remote PeerID) error {
-	glog.Infof("handleData from %v", remote)
+	p.infof(1, "handleData from %v", remote)
 	c, ok1 := p.chans[cid]
 	if !ok1 {
 		return fmt.Errorf("handleData could not find chan %v", cid)
@@ -50,14 +58,14 @@ func (p *Ppspp) handleData(cid ChanID, m Msg, remote PeerID) error {
 	if !ok3 {
 		return MsgError{c: cid, m: m, info: "could not convert to DataMsg"}
 	}
-	glog.Infof("recvd data %d-%d from %v on %v", d.Start, d.End, remote, sid)
+	p.infof(3, "recvd data %d-%d from %v on %v", d.Start, d.End, remote, sid)
 	// TODO: skipping integrity check
 	if err := swarm.AddLocalChunks(d.Start, d.End, d.Data); err != nil {
 		return err
 	}
 	// Send haves to all peers in the swarm
 	for r := range swarm.chans {
-		if err := p.SendHave(d.Start, d.End, r, sid); err != nil {
+		if err := p.sendHave(d.Start, d.End, r, sid); err != nil {
 			return err
 		}
 	}

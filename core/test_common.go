@@ -5,7 +5,7 @@ import (
 )
 
 func newStubNetworkPeer(id string) *Peer {
-	p := NewPpspp()
+	p := NewPpspp(StringPeerID{id})
 
 	n := NewStubNetwork(id)
 

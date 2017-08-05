@@ -6,8 +6,34 @@ import (
 	"fmt"
 	"math/rand"
 
+	"sync"
+
 	"github.com/golang/glog"
 )
+
+// A note about concurrency in the Ppspp implementation of the Protocol interface
+// @sricketts
+// I don't fully understand the libp2p network stuff -- I think the stream handler
+// can run concurrently with everything else. So, assuming I know nothing about that,
+// I designed a simple approach to dealing with unknown multi-threading that may be
+// going on here. It is likely not performance optimized, but it's a start.
+//
+// Assumptions:
+// - HandleDatagram can be called in another thread from everything else.
+// - All other Protocol function calls are called from the same thread
+// - Network in/out buffers are infinitely long (virtually), so nothing is ever blocked on a network resource
+//
+// For deadlock avoidance, the design must satisfy the property that:
+// - HandleDatagram must be guaranteed to complete without blocking on network or local input
+// - Other function calls must be guaranteed to complete without blocking on network or local input
+//
+// So basically it sounds like we need a global lock for Ppspp that you acquire when you start an interface
+// function and release when you exit (e.g. defer release). And that means that these thread-safe functions
+// cannot call each other. Instead, we should have private versions of these that can be called for composibility
+// (e.g. HandleDatagram can call addSwarm but not AddSwarm).
+//
+// So now, these functions are all Atomic with respect to each other, for a given receiver Protocol object.
+// Should we mark certain functions as atomic? I don't think so -- assume they all are for now.
 
 // Protocol is the interface to the PPSPP logic
 type Protocol interface {
@@ -117,6 +143,10 @@ type Chan struct {
 
 // Ppspp is a PPSPP implementation
 type Ppspp struct {
+
+	// the id of this peer
+	id PeerID
+
 	// all of this peer's channels, indexed by a local ChanID
 	chans map[ChanID]*Chan
 
@@ -124,10 +154,13 @@ type Ppspp struct {
 	swarms map[SwarmID]*Swarm
 
 	datagramSender func(Datagram, PeerID) error
+
+	// mutex so that at most one interface function is called at once
+	mutex sync.Mutex
 }
 
 // NewPpspp creates a new PPSPP protocol object
-func NewPpspp() *Ppspp {
+func NewPpspp(id PeerID) *Ppspp {
 
 	// initially, there are no locally known swarms
 	swarms := make(map[SwarmID](*Swarm))
@@ -137,13 +170,16 @@ func NewPpspp() *Ppspp {
 	chans[0] = &Chan{}
 	chans[0].state = Begin
 
-	p := Ppspp{chans: chans, swarms: swarms}
+	p := Ppspp{id: id, chans: chans, swarms: swarms}
 
 	return &p
 }
 
 // HandleDatagram handles an incoming datagram from a remote peer with the given id
 func (p *Ppspp) HandleDatagram(d *Datagram, id PeerID) error {
+	p.lock()
+	defer p.unlock()
+
 	glog.Infof("handling datagram from %v: %v\n", id, d)
 	if len(d.Msgs) == 0 {
 		return errors.New("no messages in datagram")
@@ -164,6 +200,9 @@ func (p *Ppspp) HandleDatagram(d *Datagram, id PeerID) error {
 
 // SetDatagramSender sets the datagram sender function
 func (p *Ppspp) SetDatagramSender(f func(Datagram, PeerID) error) {
+	p.lock()
+	defer p.unlock()
+
 	p.datagramSender = f
 }
 
@@ -178,11 +217,17 @@ func (p *Ppspp) sendDatagram(d Datagram, c ChanID) error {
 
 // AddSwarm adds a swarm with a given ID
 func (p *Ppspp) AddSwarm(metadata SwarmMetadata) {
+	p.lock()
+	defer p.unlock()
+
 	p.swarms[metadata.ID] = NewSwarm(metadata)
 }
 
 // Swarm returns the swarm at the given id
 func (p *Ppspp) Swarm(id SwarmID) (*Swarm, error) {
+	p.lock()
+	defer p.unlock()
+
 	s, ok := p.swarms[id]
 	if ok {
 		return s, nil
@@ -214,6 +259,9 @@ func (p *Ppspp) closeChannel(c ChanID) error {
 // ProtocolState returns the current ProtocolState in a swarm for a given remote peer
 // if this returns unknown state, check error for reason
 func (p *Ppspp) ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error) {
+	p.lock()
+	defer p.unlock()
+
 	s, ok1 := p.swarms[sid]
 	if !ok1 {
 		return Unknown, fmt.Errorf("ProtocolState could not find swarm at sid=%v", sid)
@@ -231,6 +279,9 @@ func (p *Ppspp) ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error) {
 
 // AddLocalChunk stores a chunk locally for the given swarm
 func (p *Ppspp) AddLocalChunk(sid SwarmID, cid ChunkID, b []byte) error {
+	p.lock()
+	defer p.unlock()
+
 	c := &Chunk{ID: cid, B: b}
 	swarm := p.swarms[sid]
 	ref := swarm.ChunkSize()
@@ -270,6 +321,14 @@ func (p *Ppspp) addChan(ours ChanID, sid SwarmID, theirs ChanID, state ProtocolS
 	return nil
 }
 
+func (p *Ppspp) lock() {
+	p.mutex.Lock()
+}
+
+func (p *Ppspp) unlock() {
+	p.mutex.Unlock()
+}
+
 // chanIDForSwarmAndPeer is a convenience function to return the channel in the swarm for the given peer
 func (p *Ppspp) chanIDForSwarmAndPeer(sid SwarmID, pid PeerID) (ChanID, bool) {
 	// Check if we already have a channel for this remote peer in the swarm
@@ -296,6 +355,23 @@ func (p *Ppspp) randomUnusedChanID() ChanID {
 		}
 	}
 }
+
+// Info is wraps glog.Verbose Info to add Ppspp-specific info to the message
+func (p *Ppspp) info(level glog.Level, args ...interface{}) {
+	format := fmt.Sprintf("%v: %s", p.id, args)
+	glog.V(level).Infof(format, args)
+}
+
+// Infof is wraps glog.Verbose Infof to add Ppspp-specific info to the message
+func (p *Ppspp) infof(level glog.Level, format string, args ...interface{}) {
+	format2 := fmt.Sprintf("%v: %s", p.id, format)
+	glog.V(level).Infof(format2, args)
+}
+
+// // V wraps glog's
+// func V(level glog.Level) glog.Verbose {
+// 	return glog.V(level)
+// }
 
 // StubProtocol handles incoming datagrams by storing them
 type StubProtocol struct {

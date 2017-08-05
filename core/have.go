@@ -15,6 +15,14 @@ type HaveMsg struct {
 // SendHave sends a have message for the chunk range to the remote peer on the Swarm
 func (p *Ppspp) SendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
 	glog.Infof("SendHave Chunks %d-%d, to %v, on %v", start, end, remote, sid)
+
+	p.lock()
+	defer p.unlock()
+
+	return p.sendHave(start, end, remote, sid)
+}
+func (p *Ppspp) sendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID) error {
+	glog.Infof("sendHave Chunks %d-%d, to %v, on %v", start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]
 	if !ok1 {
 		return fmt.Errorf("SendHave could not find %v", sid)
@@ -67,7 +75,7 @@ func (p *Ppspp) requestWantedChunksInRange(start ChunkID, end ChunkID, remote Pe
 		} else {
 			if wantedRange {
 				wantedRange = false
-				err := p.SendRequest(startRange, endRange, remote, sid)
+				err := p.sendRequest(startRange, endRange, remote, sid)
 				if err != nil {
 					return err
 				}
@@ -76,7 +84,7 @@ func (p *Ppspp) requestWantedChunksInRange(start ChunkID, end ChunkID, remote Pe
 	}
 	// If we left the for loop in a wantedRange, send the request for it
 	if wantedRange {
-		err := p.SendRequest(startRange, endRange, remote, sid)
+		err := p.sendRequest(startRange, endRange, remote, sid)
 		if err != nil {
 			return err
 		}
