@@ -8,6 +8,20 @@ import (
 	"github.com/golang/glog"
 )
 
+// SwarmDataHandler is a function that's invoked with new data chunks that
+// have just been received.
+type SwarmDataHandler func(DataMsg)
+
+// SwarmConfig is used to create a Swarm.
+type SwarmConfig struct {
+	// Metadata stores the metadata of a Swarm.  See the docs for
+	// SwarmMetadata for details.
+	Metadata SwarmMetadata
+	// DataHandler is invoked in a new goroutine whenever new data chunks
+	// have been received.
+	DataHandler SwarmDataHandler
+}
+
 // SwarmMetadata stores the metadata of a Swarm
 // See: https://tools.ietf.org/html/rfc7574#section-3.1
 type SwarmMetadata struct {
@@ -31,18 +45,25 @@ type Swarm struct {
 	// haves maps ChunkID to a list of peers that have that chunk (peers tracked by peer ID)
 	remoteHaves map[ChunkID]*list.List
 
-	metadata SwarmMetadata
+	metadata    SwarmMetadata
+	dataHandler SwarmDataHandler
 }
 
 // NewSwarm creates a new Swarm
-func NewSwarm(metadata SwarmMetadata) *Swarm {
+func NewSwarm(config SwarmConfig) *Swarm {
 	chans := make(map[PeerID]ChanID)
 
 	localChunks := make(map[ChunkID]*Chunk)
 
 	remoteHaves := make(map[ChunkID]*list.List)
 
-	return &Swarm{chans: chans, localChunks: localChunks, remoteHaves: remoteHaves, metadata: metadata}
+	return &Swarm{
+		chans:       chans,
+		localChunks: localChunks,
+		remoteHaves: remoteHaves,
+		metadata:    config.Metadata,
+		dataHandler: config.DataHandler,
+	}
 }
 
 // AddRemoteHave tells this Swarm that the remote peer p has ChunkID c

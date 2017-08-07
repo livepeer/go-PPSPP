@@ -20,8 +20,11 @@ func TestNetworkHandshake(t *testing.T) {
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
 	swarmMetadata := core.SwarmMetadata{ID: core.SwarmID(8), ChunkSize: 8}
+	swarmConfig := core.SwarmConfig{
+		Metadata: swarmMetadata,
+	}
 	sid := swarmMetadata.ID
-	p1, p2 := setupTwoPeerSwarm(t, 666, swarmMetadata)
+	p1, p2 := setupTwoPeerSwarm(t, 666, swarmConfig, swarmConfig)
 	glog.Infof("Handshake between %s and %s on swarm %v\n", p1.ID(), p2.ID(), sid)
 
 	// First phase: start handshake in one thread, wait in the other
@@ -63,7 +66,7 @@ func TestNetworkHandshake(t *testing.T) {
 	}
 }
 
-func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*core.Peer, *core.Peer) {
+func setupTwoPeerSwarm(t *testing.T, seed int64, config1 core.SwarmConfig, config2 core.SwarmConfig) (*core.Peer, *core.Peer) {
 	rand.Seed(seed)
 	port1 := rand.Intn(100) + 10000
 	port2 := port1 + 1
@@ -76,10 +79,10 @@ func setupTwoPeerSwarm(t *testing.T, seed int64, metadata core.SwarmMetadata) (*
 		t.Fatal(err)
 	}
 	peerExchangeIDAddr(p1, p2)
-	if err := p1.P.AddSwarm(metadata); err != nil {
+	if err := p1.P.AddSwarm(config1); err != nil {
 		t.Fatal(err)
 	}
-	if err := p2.P.AddSwarm(metadata); err != nil {
+	if err := p2.P.AddSwarm(config2); err != nil {
 		t.Fatal(err)
 	}
 	err1 := p1.Connect(p2.ID())
@@ -171,8 +174,18 @@ func TestNetworkDataExchange(t *testing.T) {
 	// This is the bootstrap part -- set up the peers, exchange IDs/addrs, and
 	// connect them in one thread.
 	swarmMetadata := core.SwarmMetadata{ID: core.SwarmID(7), ChunkSize: 16}
+	p1dataCh := make(chan core.DataMsg)
+	config1 := core.SwarmConfig{
+		Metadata: swarmMetadata,
+		DataHandler: func(msg core.DataMsg) {
+			p1dataCh <- msg
+		},
+	}
+	config2 := core.SwarmConfig{
+		Metadata: swarmMetadata,
+	}
 	sid := swarmMetadata.ID
-	p1, p2 := setupTwoPeerSwarm(t, 234, swarmMetadata)
+	p1, p2 := setupTwoPeerSwarm(t, 234, config1, config2)
 	glog.Infof("Data exchange between %s and %s on swarm %v\n", p1.ID(), p2.ID(), sid)
 
 	// First phase: start handshake in one thread, wait in the other
@@ -188,25 +201,37 @@ func TestNetworkDataExchange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(3 * time.Second)
-
 	swarm, err1 := p1.P.Swarm(sid)
 	if err1 != nil {
 		t.Fatal(err1)
 	}
+
+	// We expect to receive the chunks very quickly.
+	timeout := time.After(3 * time.Second)
+	// Use a map to keep track of the chunk IDs we receive.
+	chunkIDs := make(map[core.ChunkID]struct{})
+	for len(chunkIDs) != len(reference) {
+		select {
+		case msg := <-p1dataCh:
+			for i := msg.Start; i <= msg.End; i++ {
+				// Check that the chunk IDs are within range
+				if i < 0 || int(i) >= len(reference) {
+					t.Fatalf("chunk ID %v is out of range [0..%v)", i, len(reference))
+				}
+				chunkIDs[i] = struct{}{}
+			}
+			// Check that the data are valid
+			checkMatchingBytes(t, msg.Data, reference, msg.Start, msg.End, swarm.ChunkSize())
+		case <-timeout:
+			t.Fatal("failed to receive data chunks in time")
+		}
+	}
+
 	content, err2 := swarm.DataFromLocalChunks(0, core.ChunkID(len(reference)-1))
 	if err2 != nil {
 		t.Errorf("content error: %v", err2)
 	}
-	for i := 0; i < len(reference); i++ {
-		for j := 0; j < swarm.ChunkSize(); j++ {
-			bref := []byte(reference[core.ChunkID(i)])[j]
-			bcontent := content[(i*swarm.ChunkSize())+j]
-			if bref != bcontent {
-				t.Errorf("local content mismatch chunk %d byte %d, bref=0x%x, bcontent=0x%x", i, j, bref, bcontent)
-			}
-		}
-	}
+	checkMatchingBytes(t, content, reference, 0, core.ChunkID(len(reference)), swarm.ChunkSize())
 	glog.Infof("content=%v", content)
 
 	// Second phase: close the handshake in one thread, wait in the other.
@@ -244,4 +269,18 @@ func sendHaves(ref map[core.ChunkID]string, s core.SwarmID, p *core.Peer, remote
 		return fmt.Errorf("sendHaves error: %v", err2)
 	}
 	return nil
+}
+
+// checkMatchingBytes checks that `content` matches the concatenation
+// of `reference[start:end]`
+func checkMatchingBytes(t *testing.T, content []byte, reference map[core.ChunkID]string, start core.ChunkID, end core.ChunkID, chunkSize int) {
+	for i := start; i < end; i++ {
+		for j := 0; j < chunkSize; j++ {
+			bref := []byte(reference[core.ChunkID(i)])[j]
+			bcontent := content[(int(i)*chunkSize)+j]
+			if bref != bcontent {
+				t.Errorf("content mismatch chunk %d byte %d, bref=0x%x, bcontent=0x%x", i, j, bref, bcontent)
+			}
+		}
+	}
 }
