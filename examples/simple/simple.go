@@ -17,8 +17,18 @@ func main() {
 
 	// Set up two peers, exchange IDs/addrs, and connect them.
 	swarmMetadata := core.SwarmMetadata{ID: core.SwarmID(7), ChunkSize: 16}
+	p1dataCh := make(chan core.DataMsg)
+	config1 := core.SwarmConfig{
+		Metadata: swarmMetadata,
+		DataHandler: func(msg core.DataMsg) {
+			p1dataCh <- msg
+		},
+	}
+	config2 := core.SwarmConfig{
+		Metadata: swarmMetadata,
+	}
 	sid := swarmMetadata.ID
-	p1, p2, err := setupTwoPeerSwarm(234, swarmMetadata)
+	p1, p2, err := setupTwoPeerSwarm(234, config1, config2)
 	if err != nil {
 		glog.Fatalf("error setting up peers: %v", err)
 	}
@@ -53,8 +63,17 @@ func main() {
 		glog.Fatalf("sendHaves error: %v", err)
 	}
 
-	// Wait for the data exchange to happen
-	time.Sleep(3 * time.Second)
+	// We expect to receive the chunks very quickly.
+	timeout := time.After(3 * time.Second)
+	var receivedChunks int
+	for receivedChunks != len(p2data) {
+		select {
+		case msg := <-p1dataCh:
+			receivedChunks += int(msg.End-msg.Start) + 1
+		case <-timeout:
+			glog.Fatal("failed to receive data chunks in time")
+		}
+	}
 
 	// p1: Should have requested and received the chunks from p2.
 	// Check that it is in p1's swarm object.
@@ -90,7 +109,7 @@ func main() {
 	p2.Disconnect(p1.ID())
 }
 
-func setupTwoPeerSwarm(seed int64, metadata core.SwarmMetadata) (*core.Peer, *core.Peer, error) {
+func setupTwoPeerSwarm(seed int64, config1 core.SwarmConfig, config2 core.SwarmConfig) (*core.Peer, *core.Peer, error) {
 	rand.Seed(seed)
 	port1 := rand.Intn(100) + 10000
 	port2 := port1 + 1
@@ -108,8 +127,8 @@ func setupTwoPeerSwarm(seed int64, metadata core.SwarmMetadata) (*core.Peer, *co
 	p1.AddAddrs(p2.ID(), addrs2)
 	p2.AddAddrs(p1.ID(), addrs1)
 
-	p1.P.AddSwarm(metadata)
-	p2.P.AddSwarm(metadata)
+	p1.P.AddSwarm(config1)
+	p2.P.AddSwarm(config2)
 	err1 := p1.Connect(p2.ID())
 	if err1 != nil {
 		return nil, nil, fmt.Errorf("%v could not connect to %v: %v", p1.ID(), p2.ID(), err1)

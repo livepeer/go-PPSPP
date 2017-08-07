@@ -55,6 +55,10 @@ func (p *Ppspp) handleData(cid ChanID, m Msg, remote PeerID) error {
 	if err := swarm.AddLocalChunks(d.Start, d.End, d.Data); err != nil {
 		return err
 	}
+	// Invoke the data handler if we have one
+	if swarm.dataHandler != nil {
+		go swarm.dataHandler(d)
+	}
 	// Send haves to all peers in the swarm
 	for r := range swarm.chans {
 		if err := p.SendHave(d.Start, d.End, r, sid); err != nil {

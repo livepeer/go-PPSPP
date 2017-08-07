@@ -89,10 +89,10 @@ func (n *libp2pNetwork) SetDatagramHandler(f func(*Datagram, PeerID) error) {
 				break
 			}
 			if err != nil {
-				glog.Fatal(err)
+				glog.Error(err)
 			}
 			if err = f(d, remote); err != nil {
-				glog.Fatal(err)
+				glog.Error(err)
 			}
 		}
 		glog.Infof("%v handled stream", n.ID())
