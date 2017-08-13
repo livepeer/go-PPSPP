@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"container/list"
 
@@ -50,6 +51,10 @@ type libp2pNetwork struct {
 	streams map[PeerID]*WrappedStream
 
 	h host.Host
+
+	// emutex sync.Mutex
+	// dmutex sync.Mutex
+	mutex sync.Mutex
 }
 
 func newLibp2pNetwork(port int) (*libp2pNetwork, error) {
@@ -78,14 +83,18 @@ func (n *libp2pNetwork) SetDatagramHandler(f func(*Datagram, PeerID) error) {
 	n.h.SetStreamHandler(proto, func(s inet.Stream) {
 
 		remote := PeerID(s.Conn().RemotePeer())
-		glog.V(3).Infof("%v received a stream from %s", n.ID(), remote)
+		glog.V(1).Infof("%v received a stream %v from %s", n.ID(), s, remote)
 		defer s.Close()
 		ws := WrapStream(s)
 		for {
 			d, err := n.receiveDatagram(ws)
-			glog.V(3).Infof("%v recvd Datagram %v", n.ID(), d)
+			//glog.Fatal("foo")
+			glog.V(1).Infof("%v recvd Datagram %v from stream", n.ID(), d)
+			// if s != n.streams[remote].stream {
+			// 	glog.Fatal("FIXME")
+			// }
 			if err == io.EOF {
-				glog.V(3).Infof("%v received EOF", n.ID())
+				glog.V(2).Infof("%v received EOF", n.ID())
 				break
 			}
 			if err != nil {
@@ -106,20 +115,35 @@ func (n *libp2pNetwork) SendDatagram(d Datagram, id PeerID) error {
 		return fmt.Errorf("SendDatagram could not find stream at %v", id)
 	}
 	glog.V(1).Infof("%v SendDatagram sending datagram %v\n", n.ID(), d)
+	n.lockEnc()
+	glog.V(2).Infof("%v SendDatagram encoding\n", n.ID())
 	if err := ws.enc.Encode(d); err != nil {
 		return fmt.Errorf("SendDatagram encode error %v", err)
 	}
+	glog.V(2).Infof("%v SendDatagram flushing\n", n.ID())
 	// Because output is buffered with bufio, we need to flush!
 	if err := ws.w.Flush(); err != nil {
 		return fmt.Errorf("SendDatagram flush error: %v", err)
 	}
-	glog.V(3).Infof("%v SendDatagram flushed datagram %v", n.ID(), d)
+	glog.V(2).Infof("%v SendDatagram unlocking\n", n.ID())
+	n.unlockEnc()
+	glog.V(3).Infof("%v SendDatagram flushed datagram %v on stream 0x%x", n.ID(), d, ws.stream)
 	return nil
 }
 
-// Connect creates a stream from p to the peer at id and sets a stream handler
+// Connect creates a stream from p to the peer at id
 func (n *libp2pNetwork) Connect(id PeerID) error {
+	// _, ok := n.streams[id]
+	// if ok {
+	// 	// Connection already exists
+	// 	_, err := n.h.NewStream(context.Background(), id.(libp2ppeer.ID), proto)
+	// 	return err
+	// }
+
+	n.lockEnc()
+	defer n.unlockEnc()
 	stream, err := n.h.NewStream(context.Background(), id.(libp2ppeer.ID), proto)
+	//stream, err := n.h.NewStream(context.Background(), id.(libp2ppeer.ID), "")
 	if err != nil {
 		return err
 	}
@@ -133,6 +157,8 @@ func (n *libp2pNetwork) Connect(id PeerID) error {
 
 // Disconnect closes the stream that p is using to connect to the peer at id
 func (n *libp2pNetwork) Disconnect(id PeerID) error {
+	n.lockEnc()
+	defer n.unlockEnc()
 	ws, ok := n.streams[id]
 	if ok {
 		ws.stream.Close()
@@ -173,12 +199,32 @@ func (n *libp2pNetwork) receiveDatagram(ws *WrappedStream) (*Datagram, error) {
 		return nil, fmt.Errorf("%v receiveDatagram on nil *WrappedStream", n.ID())
 	}
 	var d Datagram
-	err := ws.dec.Decode(&d)
-	glog.V(3).Infof("%v decoded datagram %v", n.ID(), d)
-	if err != nil {
+	glog.V(2).Infof("%v receiveDatagram locking\n", n.ID())
+	n.lockDec()
+	defer n.unlockDec()
+	glog.V(2).Infof("%v receiveDatagram decoding\n", n.ID())
+	if err := ws.dec.Decode(&d); err != nil {
+		glog.V(2).Infof("%v receiveDatagram Decode error %v\n", n.ID(), err)
 		return nil, err
 	}
+	glog.V(2).Infof("%v receiveDatagram decoded datagram %v", n.ID(), d)
 	return &d, nil
+}
+
+func (n *libp2pNetwork) lockEnc() {
+	n.mutex.Lock()
+}
+
+func (n *libp2pNetwork) unlockEnc() {
+	n.mutex.Unlock()
+}
+
+func (n *libp2pNetwork) lockDec() {
+	n.mutex.Lock()
+}
+
+func (n *libp2pNetwork) unlockDec() {
+	n.mutex.Unlock()
 }
 
 // StubNetwork stores all sent datagrams without sending them anywhere

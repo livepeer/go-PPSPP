@@ -91,7 +91,7 @@ func (p *Peer) Addrs() []ma.Multiaddr {
 	return p.n.Addrs()
 }
 
-// Connect creates a stream from p to the peer at id and sets a stream handler
+// Connect creates a stream from p to the peer at id
 func (p *Peer) Connect(id PeerID) error {
 	glog.V(1).Infof("%v Connect to %s", p.ID(), id)
 	return p.n.Connect(id)

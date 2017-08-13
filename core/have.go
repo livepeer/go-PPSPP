@@ -26,15 +26,15 @@ func (p *Ppspp) sendHave(start ChunkID, end ChunkID, remote PeerID, sid SwarmID)
 	glog.V(1).Infof("%v sendHave Chunks %d-%d, to %v, on %v", p.id, start, end, remote, sid)
 	swarm, ok1 := p.swarms[sid]
 	if !ok1 {
-		return fmt.Errorf("sendHave could not find %v", sid)
+		return fmt.Errorf("%v sendHave could not find %v", p.id, sid)
 	}
 	ours, ok2 := swarm.chans[remote]
 	if !ok2 {
-		return fmt.Errorf("sendHave could not find channel for %v on %v", remote, sid)
+		return fmt.Errorf("%v sendHave could not find channel for %v on %v", p.id, remote, sid)
 	}
 	c, ok3 := p.chans[ours]
 	if !ok3 {
-		return fmt.Errorf("sendHave could not find channel %v", ours)
+		return fmt.Errorf("%v sendHave could not find channel %v", p.id, ours)
 	}
 	h := HaveMsg{Start: start, End: end}
 	m := Msg{Op: Have, Data: h}
