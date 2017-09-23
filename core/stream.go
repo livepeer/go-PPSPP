@@ -3,7 +3,8 @@ package core
 import (
 	"bufio"
 
-	inet "github.com/libp2p/go-libp2p-net"
+	inet "gx/ipfs/QmahYsGWry85Y7WUe2SX5G4JkH2zifEQAUtJVLZ24aC9DF/go-libp2p-net"
+
 	multicodec "github.com/multiformats/go-multicodec"
 	json "github.com/multiformats/go-multicodec/json"
 )

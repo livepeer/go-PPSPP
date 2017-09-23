@@ -3,8 +3,9 @@ package core
 import (
 	"fmt"
 
+	ma "gx/ipfs/QmXY77cVe7rVRQXZZQRioukUM7aRW3BTcAgJe12MCtb3Ji/go-multiaddr"
+
 	"github.com/golang/glog"
-	ma "github.com/multiformats/go-multiaddr"
 )
 
 // FIXME: where should this go?

@@ -32,7 +32,7 @@ func TestSwarm(t *testing.T) {
 	}
 
 	// Set up peers
-	numPeers := 2
+	numPeers := 3
 	swarmMetadata := core.SwarmMetadata{ID: core.SwarmID(8), ChunkSize: chunkSize}
 	sid := swarmMetadata.ID
 	peers, err := setupPeerSwarm(numPeers, 12994, swarmMetadata)
@@ -63,35 +63,35 @@ func TestSwarm(t *testing.T) {
 	time.Sleep(4 * time.Second)
 
 	// All non-consumer peers send have messages to the consumer
-	// for _, producer := range peers {
-	// 	if producer != consumer {
-	// 		sw, err := producer.P.Swarm(sid)
-	// 		if err != nil {
-	// 			t.Fatalf("%v could not find %v: %v", consumer.ID(), sid, err)
-	// 		}
-	// 		for cid, _ := range sw.LocalChunks() {
-	// 			if err := producer.P.SendHave(cid, cid, consumer.ID(), sid); err != nil {
-	// 				t.Fatal(err)
-	// 			}
-	// 		}
-	// 	}
-	// }
+	for _, producer := range peers {
+		if producer != consumer {
+			sw, err := producer.P.Swarm(sid)
+			if err != nil {
+				t.Fatalf("%v could not find %v: %v", consumer.ID(), sid, err)
+			}
+			for cid, _ := range sw.LocalChunks() {
+				if err := producer.P.SendHave(cid, cid, consumer.ID(), sid); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
 
 	// Wait for consumer to request the chunks and receive data
 	time.Sleep(4 * time.Second)
 
 	// Check that the consumer has all of the reference data
-	// sw, err := consumer.P.Swarm(sid)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// ok, err := swarmHasChunks(sw, reference)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// if !ok {
-	// 	t.Error("consumer does not have all data")
-	// }
+	sw, err := consumer.P.Swarm(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok, err := swarmHasChunks(sw, reference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Error("consumer does not have all data")
+	}
 }
 
 // TestNetworkHandshake tests a handshake between two peers on two different ports
