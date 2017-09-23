@@ -56,6 +56,8 @@ type libp2pNetwork struct {
 	// emutex sync.Mutex
 	// dmutex sync.Mutex
 	mutex sync.Mutex
+
+	datagramHandler func(*Datagram, PeerID) error
 }
 
 func newLibp2pNetwork(port int) (*libp2pNetwork, error) {
@@ -81,32 +83,47 @@ func (n *libp2pNetwork) Addrs() []ma.Multiaddr {
 
 func (n *libp2pNetwork) SetDatagramHandler(f func(*Datagram, PeerID) error) {
 	glog.V(1).Infof("%v setting stream handler", n.ID())
-	n.h.SetStreamHandler(proto, func(s inet.Stream) {
+	n.datagramHandler = f
 
+	n.h.SetStreamHandler(proto, func(s inet.Stream) {
+		defer s.Close()
 		remote := PeerID(s.Conn().RemotePeer())
 		glog.V(1).Infof("%v received a stream %v from %s", n.ID(), s, remote)
-		defer s.Close()
+
+		_, ok := n.streams[remote]
+		if ok {
+			glog.Fatal("%v received a stream from %v but one already exists", n.ID(), remote)
+		}
+
+		// Add new stream to map
 		ws := WrapStream(s)
+		n.streams[remote] = ws
+
+		// Handle incoming data on stream
 		for {
-			d, err := n.receiveDatagram(ws)
-			//glog.Fatal("foo")
-			glog.V(1).Infof("%v recvd Datagram %v from stream", n.ID(), d)
-			// if s != n.streams[remote].stream {
-			// 	glog.Fatal("FIXME")
-			// }
-			if err == io.EOF {
-				glog.V(2).Infof("%v received EOF", n.ID())
-				break
-			}
-			if err != nil {
-				glog.Fatal(err)
-			}
-			if err = f(d, remote); err != nil {
-				glog.Fatal(err)
+			if err := n.streamHandler(ws, remote); err != nil {
+				if err == io.EOF {
+					glog.V(2).Infof("%v received EOF", n.ID())
+					break
+				} else {
+					glog.Fatal(err)
+				}
 			}
 		}
 		glog.V(3).Infof("%v handled stream", n.ID())
 	})
+}
+
+func (n *libp2pNetwork) streamHandler(ws *WrappedStream, remote PeerID) error {
+	d, err := n.receiveDatagram(ws)
+
+	glog.V(1).Infof("%v recvd Datagram %v from stream", n.ID(), d)
+
+	if err != nil {
+		return err
+	}
+
+	return n.datagramHandler(d, remote)
 }
 
 // SendDatagram encodes and writes a datagram to the channel
@@ -134,24 +151,37 @@ func (n *libp2pNetwork) SendDatagram(d Datagram, id PeerID) error {
 
 // Connect creates a stream from p to the peer at id
 func (n *libp2pNetwork) Connect(id PeerID) error {
-	// _, ok := n.streams[id]
-	// if ok {
-	// 	// Connection already exists
-	// 	_, err := n.h.NewStream(context.Background(), id.(libp2ppeer.ID), proto)
-	// 	return err
-	// }
+	_, ok := n.streams[id]
+	if ok {
+		// Connection already exists
+		//_, err := n.h.NewStream(context.Background(), id.(libp2ppeer.ID), proto)
+		//return err
+		return nil
+	}
 
-	//n.lockEnc()
-	//defer n.unlockEnc()
+	// Create new stream
 	stream, err := n.h.NewStream(context.Background(), id.(libp2ppeer.ID), proto)
-	//stream, err := n.h.NewStream(context.Background(), id.(libp2ppeer.ID), "")
 	if err != nil {
 		return err
 	}
-
 	ws := WrapStream(stream)
 
+	// Add new stream to map
 	n.streams[id] = ws
+
+	// Handle data that comes back on this stream
+	go func() {
+		for {
+			if err := n.streamHandler(ws, id); err != nil {
+				if err == io.EOF {
+					glog.V(2).Infof("%v received EOF", n.ID())
+					break
+				} else {
+					glog.Fatal(err)
+				}
+			}
+		}
+	}()
 
 	return nil
 }
@@ -200,9 +230,6 @@ func (n *libp2pNetwork) receiveDatagram(ws *WrappedStream) (*Datagram, error) {
 		return nil, fmt.Errorf("%v receiveDatagram on nil *WrappedStream", n.ID())
 	}
 	var d Datagram
-	glog.V(2).Infof("%v receiveDatagram locking\n", n.ID())
-	//n.lockDec()
-	//defer n.unlockDec()
 	glog.V(2).Infof("%v receiveDatagram decoding\n", n.ID())
 	if err := ws.dec.Decode(&d); err != nil {
 		glog.V(2).Infof("%v receiveDatagram Decode error %v\n", n.ID(), err)
