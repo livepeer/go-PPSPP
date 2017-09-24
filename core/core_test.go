@@ -87,7 +87,8 @@ func TestSwarm(t *testing.T) {
 	}
 
 	// Wait for consumer to request the chunks and receive data
-	time.Sleep(5 * time.Second)
+	// TODO: use the new datahandler callback (need to merge with master to get this)
+	time.Sleep(8 * time.Second)
 
 	// Check that the consumer has all of the reference data
 	sw, err := consumer.P.Swarm(sid)
