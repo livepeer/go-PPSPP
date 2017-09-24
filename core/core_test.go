@@ -49,18 +49,27 @@ func TestSwarm(t *testing.T) {
 		}
 	}
 
+	// Set up channels for each peer to mark that handshake is done
+	ready := make(chan core.PeerID, numPeers-1)
+
 	// The consumer peer handshakes with all other peers
 	consumer := peers[rand.Intn(numPeers)]
 	for _, remote := range peers {
 		if consumer != remote {
-			if err := consumer.P.StartHandshake(remote.ID(), swarmMetadata.ID); err != nil {
+			onReady := func(id core.PeerID) {
+				ready <- id
+			}
+			if err := consumer.P.StartHandshake(remote.ID(), swarmMetadata.ID, onReady); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
 
-	// Wait
-	time.Sleep(4 * time.Second)
+	// Wait for all handshakes to complete
+	for i := 0; i < numPeers-1; i++ {
+		<-ready
+		// TODO: we could check that all non-consumer IDs are written to ready
+	}
 
 	// All non-consumer peers send have messages to the consumer
 	for _, producer := range peers {
@@ -78,7 +87,7 @@ func TestSwarm(t *testing.T) {
 	}
 
 	// Wait for consumer to request the chunks and receive data
-	time.Sleep(4 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Check that the consumer has all of the reference data
 	sw, err := consumer.P.Swarm(sid)
@@ -127,7 +136,7 @@ func TestNetworkHandshake(t *testing.T) {
 	p2.Disconnect(p1.ID())
 
 	// Test Disconnect by making sure another handshake fails
-	err := p1.P.StartHandshake(p2.ID(), swarmMetadata.ID)
+	err := p1.P.StartHandshake(p2.ID(), swarmMetadata.ID, nil)
 	if err == nil {
 		t.Error("StartHandshake should fail after Disconnect")
 	} else {
@@ -197,7 +206,7 @@ func startNetworkHandshake(t *testing.T, p *core.Peer, remote core.PeerID, swarm
 	p.P.AddSwarm(swarmMetadata)
 
 	// kick off the handshake
-	err := p.P.StartHandshake(remote, swarmMetadata.ID)
+	err := p.P.StartHandshake(remote, swarmMetadata.ID, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -289,7 +298,7 @@ func TestNetworkDataExchange(t *testing.T) {
 	swarmMetadata := core.SwarmMetadata{ID: core.SwarmID(7), ChunkSize: 16}
 	sid := swarmMetadata.ID
 	p1, p2 := setupTwoPeerSwarm(t, 234, swarmMetadata)
-	glog.Infof("Data exchange between %s and %s on swarm %v\n", p1.ID(), p2.ID(), sid)
+	glog.V(3).Infof("Data exchange between %s and %s on swarm %v\n", p1.ID(), p2.ID(), sid)
 
 	// First phase: start handshake in one thread, wait in the other
 	// Each thread checks that state is moved to ready before setting the done channel
@@ -321,7 +330,7 @@ func TestNetworkDataExchange(t *testing.T) {
 			}
 		}
 	}
-	glog.Infof("content=%v", content)
+	glog.V(3).Infof("content=%v", content)
 
 	// Second phase: close the handshake in one thread, wait in the other.
 	// Each thread checks that the channel is gone before setting the done channel

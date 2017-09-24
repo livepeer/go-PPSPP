@@ -61,14 +61,18 @@ func (p *Ppspp) handleData(cid ChanID, m Msg, remote PeerID) error {
 		return MsgError{c: cid, m: m, info: "could not convert to DataMsg"}
 	}
 	glog.V(3).Infof("%v recvd data %d-%d from %v on %v", p.id, d.Start, d.End, remote, sid)
+
 	// TODO: skipping integrity check
 	if err := swarm.AddLocalChunks(d.Start, d.End, d.Data); err != nil {
 		return err
 	}
 	for i := d.Start; i <= d.End; i++ {
-		if err := swarm.RemoveRequest(i); err != nil {
-			return err
+		if swarm.Requested(i) {
+			if err := swarm.RemoveRequest(i); err != nil {
+				return err
+			}
 		}
+		// TODO: if not requested, we probably shouldn't have added the local chunk above.
 	}
 	// Send haves to all peers in the swarm
 	for r := range swarm.chans {

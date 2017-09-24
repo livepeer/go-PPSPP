@@ -15,7 +15,8 @@ type HandshakeMsg struct {
 }
 
 // StartHandshake sends a starting handshake message to the remote peer on swarm sid
-func (p *Ppspp) StartHandshake(remote PeerID, sid SwarmID) error {
+// onReady function is called asynchronously when the handshake is complete.
+func (p *Ppspp) StartHandshake(remote PeerID, sid SwarmID, onReady func(PeerID)) error {
 	p.lock()
 	defer p.unlock()
 
@@ -25,6 +26,7 @@ func (p *Ppspp) StartHandshake(remote PeerID, sid SwarmID) error {
 	// their channel is 0 until they reply with a handshake
 	p.addChan(ours, sid, 0, Begin, remote)
 	p.chans[ours].state = WaitHandshake
+	p.chans[ours].onReady = onReady
 	return p.sendReqHandshake(ours, sid)
 }
 
@@ -58,6 +60,9 @@ func (p *Ppspp) handleHandshake(cid ChanID, m Msg, remote PeerID) error {
 			return err
 		}
 		glog.V(3).Infof("%v moving to ready state", p.id)
+		if p.chans[newCID].onReady != nil {
+			go p.chans[newCID].onReady(remote)
+		}
 		p.sendReplyHandshake(newCID, h.C, h.S)
 	} else {
 		c := p.chans[cid]
@@ -138,6 +143,9 @@ func (p *Ppspp) handleReplyHandshake(h HandshakeMsg, cid ChanID) error {
 		c.theirs = h.C
 		glog.V(3).Infof("%v moving to ready state", p.id)
 		c.state = Ready
+		if c.onReady != nil {
+			go c.onReady(c.remote)
+		}
 	}
 
 	return nil

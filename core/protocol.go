@@ -39,7 +39,7 @@ import (
 type Protocol interface {
 	HandleDatagram(d *Datagram, id PeerID) error
 	SetDatagramSender(f func(Datagram, PeerID) error)
-	StartHandshake(remote PeerID, sid SwarmID) error
+	StartHandshake(remote PeerID, sid SwarmID, onReady func(PeerID)) error
 	SendClosingHandshake(remote PeerID, sid SwarmID) error
 	ProtocolState(sid SwarmID, pid PeerID) (ProtocolState, error)
 	AddSwarm(metadata SwarmMetadata)
@@ -135,10 +135,11 @@ const (
 
 // Chan holds the current state of a channel
 type Chan struct {
-	sw     SwarmID       // the swarm that this channel is communicating for
-	theirs ChanID        // remote id to attach to outgoing datagrams on this channel
-	state  ProtocolState // current state of the protocol on this channel
-	remote PeerID        // PeerID of the remote peer
+	sw      SwarmID       // the swarm that this channel is communicating for
+	theirs  ChanID        // remote id to attach to outgoing datagrams on this channel
+	state   ProtocolState // current state of the protocol on this channel
+	remote  PeerID        // PeerID of the remote peer
+	onReady func(PeerID)  // function to call when state moves to ready
 }
 
 // Ppspp is a PPSPP implementation
@@ -402,7 +403,7 @@ func (p *StubProtocol) SetDatagramSender(f func(Datagram, PeerID) error) {
 }
 
 // StartHandshake is a noop for StubProtocol
-func (p *StubProtocol) StartHandshake(remote PeerID, sid SwarmID) error {
+func (p *StubProtocol) StartHandshake(remote PeerID, sid SwarmID, onReady func(PeerID)) error {
 	return nil
 }
 

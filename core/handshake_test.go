@@ -14,7 +14,7 @@ func TestStartHandshake(t *testing.T) {
 	n := p.n.(*StubNetwork)
 
 	// Call StartHandshake
-	p.P.StartHandshake(StringPeerID{"p2"}, sid)
+	p.P.StartHandshake(StringPeerID{"p2"}, sid, nil)
 
 	// Check the sent handshake for errors
 	if num := n.NumSentDatagrams(); num != 1 {
@@ -129,8 +129,12 @@ func TestHandshakeRace(t *testing.T) {
 	swarmMetadata := SwarmMetadata{ID: sid, ChunkSize: 8}
 	p.P.AddSwarm(swarmMetadata)
 
+	pReady := make(chan int, 1)
+	onPReady := func(id PeerID) {
+		pReady <- 1
+	}
 	// Start handshake with p2
-	p.P.StartHandshake(StringPeerID{"p2"}, swarmMetadata.ID)
+	p.P.StartHandshake(StringPeerID{"p2"}, swarmMetadata.ID, onPReady)
 
 	// Inject a valid starting handshake from p2
 	h := HandshakeMsg{C: cid, S: swarmMetadata.ID}
@@ -151,4 +155,5 @@ func TestHandshakeRace(t *testing.T) {
 	if !ok {
 		t.Errorf("p1 not in ready state after handshake")
 	}
+	<-pReady
 }

@@ -68,11 +68,18 @@ func (s *Swarm) AddRequest(c ChunkID) error {
 	return nil
 }
 
-func (s *Swarm) RemoveRequest(c ChunkID) error {
+// Requested returns whether or not the request exists
+func (s *Swarm) Requested(c ChunkID) bool {
 	_, ok := s.requests[c]
-	if !ok {
-		return fmt.Errorf("RemoveRequest removing request but none exists")
-	}
+	return ok
+}
+
+// RemoveRequest if the request exists, remove it
+func (s *Swarm) RemoveRequest(c ChunkID) error {
+	// _, ok := s.requests[c]
+	// if !ok {
+	// 	return fmt.Errorf("RemoveRequest removing request but none exists")
+	// }
 	// TODO: better to delete key?
 	s.requests[c] = false
 	return nil

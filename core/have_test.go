@@ -99,7 +99,7 @@ func setupPeerWithHandshake(t *testing.T, remote PeerID, remoteCID ChanID, sid S
 	n := p.n.(*StubNetwork)
 
 	// Call StartHandshake
-	p.P.StartHandshake(remote, sid)
+	p.P.StartHandshake(remote, sid, nil)
 
 	// Read the channel and swarm IDs from the sent handshake so we can mock up a reply
 	d := n.ReadSentDatagram()
