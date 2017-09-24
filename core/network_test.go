@@ -52,7 +52,7 @@ func TestDisonnect(t *testing.T) {
 	if err == nil {
 		t.Fatal("SendDatagram should fail")
 	} else {
-		glog.Infof("SendDatagram returned error as expected: %v", err)
+		glog.V(3).Infof("SendDatagram returned error as expected: %v", err)
 	}
 }
 
